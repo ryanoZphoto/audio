@@ -1,0 +1,167 @@
+{% extends "admin/base.html" %}
+
+{% block title %}Customers{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+    <h1 class="h2">Customers</h1>
+    <div class="btn-toolbar mb-2 mb-md-0">
+        <div class="btn-group me-2">
+            <button type="button" class="btn btn-sm btn-outline-secondary" onclick="exportData()">Export</button>
+        </div>
+    </div>
+</div>
+
+<div class="card mb-4">
+    <div class="card-header">
+        <div class="row align-items-center">
+            <div class="col">
+                <h5 class="mb-0">All Customers</h5>
+            </div>
+            <div class="col-auto">
+                <input type="text" class="form-control" id="searchInput" placeholder="Search by email...">
+            </div>
+        </div>
+    </div>
+    <div class="card-body">
+        <div class="table-responsive">
+            <table class="table table-hover" id="customersTable">
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>Email</th>
+                        <th>Active Subscriptions</th>
+                        <th>Total Searches</th>
+                        <th>Join Date</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for customer in customers %}
+                    <tr id="{{ customer.id }}">
+                        <td>{{ customer.id }}</td>
+                        <td>{{ customer.email }}</td>
+                        <td>
+                            {% set active_subs = customer.subscriptions|selectattr('status', 'equalto', 'active')|list %}
+                            <span class="badge bg-{{ 'success' if active_subs else 'secondary' }}">
+                                {{ active_subs|length }}
+                            </span>
+                        </td>
+                        <td>
+                            {% set total_searches = customer.subscriptions|sum(attribute='searches_used') %}
+                            {{ total_searches }}
+                        </td>
+                        <td>{{ customer.created_at.strftime('%Y-%m-%d') }}</td>
+                        <td>
+                            <button type="button" 
+                                    class="btn btn-sm btn-outline-primary"
+                                    onclick="showSubscriptions({{ customer.id }})">
+                                View Subscriptions
+                            </button>
+                        </td>
+                    </tr>
+                    <tr id="subscriptions-{{ customer.id }}" class="subscription-details" style="display: none;">
+                        <td colspan="6">
+                            <div class="table-responsive">
+                                <table class="table table-sm">
+                                    <thead>
+                                        <tr>
+                                            <th>Plan Type</th>
+                                            <th>Status</th>
+                                            <th>Usage</th>
+                                            <th>Start Date</th>
+                                            <th>Expiry Date</th>
+                                            <th>Actions</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {% for sub in customer.subscriptions %}
+                                        <tr>
+                                            <td>{{ sub.plan_type }}</td>
+                                            <td>
+                                                <span class="badge bg-{{ 'success' if sub.status == 'active' else 'danger' }}">
+                                                    {{ sub.status }}
+                                                </span>
+                                            </td>
+                                            <td>{{ sub.searches_used }}/{{ sub.search_limit }}</td>
+                                            <td>{{ sub.start_date.strftime('%Y-%m-%d') }}</td>
+                                            <td>{{ sub.expiry_date.strftime('%Y-%m-%d') }}</td>
+                                            <td>
+                                                <a href="/admin/subscription/{{ sub.id }}" 
+                                                   class="btn btn-sm btn-outline-primary">
+                                                    View
+                                                </a>
+                                            </td>
+                                        </tr>
+                                        {% endfor %}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function filterTable() {
+    const searchText = document.getElementById('searchInput').value.toLowerCase();
+    const rows = document.querySelectorAll('#customersTable tbody tr:not(.subscription-details)');
+
+    rows.forEach(row => {
+        const text = row.textContent.toLowerCase();
+        const matches = text.includes(searchText);
+        row.style.display = matches ? '' : 'none';
+        
+        // Hide subscription details when filtering
+        const subRow = document.getElementById(`subscriptions-${row.id}`);
+        if (subRow) {
+            subRow.style.display = 'none';
+        }
+    });
+}
+
+function showSubscriptions(customerId) {
+    const row = document.getElementById(`subscriptions-${customerId}`);
+    const allRows = document.querySelectorAll('.subscription-details');
+    
+    // Hide all other subscription details
+    allRows.forEach(r => {
+        if (r !== row) {
+            r.style.display = 'none';
+        }
+    });
+    
+    // Toggle current row
+    row.style.display = row.style.display === 'none' ? 'table-row' : 'none';
+}
+
+function exportData() {
+    const rows = Array.from(document.querySelectorAll('#customersTable tbody tr:not(.subscription-details)'))
+        .filter(row => row.style.display !== 'none');
+    
+    const csvContent = [
+        ['ID', 'Email', 'Active Subscriptions', 'Total Searches', 'Join Date'],
+        ...rows.map(row => Array.from(row.cells)
+            .slice(0, -1) // Exclude actions column
+            .map(cell => cell.textContent.trim())
+        )
+    ].map(row => row.join(',')).join('\n');
+
+    const blob = new Blob([csvContent], { type: 'text/csv' });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'customers.csv';
+    a.click();
+    window.URL.revokeObjectURL(url);
+}
+
+document.getElementById('searchInput').addEventListener('input', filterTable);
+</script>
+{% endblock %} 

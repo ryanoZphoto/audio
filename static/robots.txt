@@ -1,0 +1,5 @@
+User-agent: *
+Allow: /
+Disallow: /admin/
+Disallow: /clips/
+Sitemap: https://audiosnipt.com/sitemap.xml 

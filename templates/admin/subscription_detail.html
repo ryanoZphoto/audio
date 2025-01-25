@@ -1,0 +1,174 @@
+{% extends "admin/base.html" %}
+
+{% block title %}Subscription Details{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+    <h1 class="h2">Subscription Details</h1>
+    <div class="btn-toolbar mb-2 mb-md-0">
+        <div class="btn-group me-2">
+            {% if subscription.status == 'active' %}
+            <button type="button" 
+                    class="btn btn-sm btn-outline-danger"
+                    onclick="cancelSubscription({{ subscription.id }})">
+                Cancel Subscription
+            </button>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-md-6 mb-4">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="card-title mb-0">Subscription Information</h5>
+            </div>
+            <div class="card-body">
+                <dl class="row">
+                    <dt class="col-sm-4">Plan Type</dt>
+                    <dd class="col-sm-8">{{ subscription.plan_type }}</dd>
+
+                    <dt class="col-sm-4">Status</dt>
+                    <dd class="col-sm-8">
+                        <span class="badge bg-{{ 'success' if subscription.status == 'active' else 'danger' }}">
+                            {{ subscription.status }}
+                        </span>
+                    </dd>
+
+                    <dt class="col-sm-4">Customer</dt>
+                    <dd class="col-sm-8">
+                        <a href="/admin/customers#{{ subscription.customer.id }}">
+                            {{ subscription.customer.email }}
+                        </a>
+                    </dd>
+
+                    <dt class="col-sm-4">Start Date</dt>
+                    <dd class="col-sm-8">{{ subscription.start_date.strftime('%Y-%m-%d %H:%M') }}</dd>
+
+                    <dt class="col-sm-4">Expiry Date</dt>
+                    <dd class="col-sm-8">{{ subscription.expiry_date.strftime('%Y-%m-%d %H:%M') }}</dd>
+
+                    <dt class="col-sm-4">Recurring</dt>
+                    <dd class="col-sm-8">{{ 'Yes' if subscription.is_recurring else 'No' }}</dd>
+
+                    <dt class="col-sm-4">Search Usage</dt>
+                    <dd class="col-sm-8">
+                        <div class="progress">
+                            <div class="progress-bar" role="progressbar" 
+                                 style="width: {{ (subscription.searches_used / subscription.search_limit * 100)|round }}%"
+                                 aria-valuenow="{{ subscription.searches_used }}"
+                                 aria-valuemin="0" 
+                                 aria-valuemax="{{ subscription.search_limit }}">
+                                {{ subscription.searches_used }}/{{ subscription.search_limit }}
+                            </div>
+                        </div>
+                    </dd>
+                </dl>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-6 mb-4">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="card-title mb-0">Usage Statistics</h5>
+            </div>
+            <div class="card-body">
+                <canvas id="searchChart"></canvas>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="card mb-4">
+    <div class="card-header">
+        <h5 class="card-title mb-0">Search History</h5>
+    </div>
+    <div class="card-body">
+        <div class="table-responsive">
+            <table class="table">
+                <thead>
+                    <tr>
+                        <th>Time</th>
+                        <th>Search Query</th>
+                        <th>Status</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for search in searches %}
+                    <tr>
+                        <td>{{ search.timestamp.strftime('%Y-%m-%d %H:%M') }}</td>
+                        <td>{{ search.search_query }}</td>
+                        <td>
+                            <span class="badge bg-{{ 'success' if search.success else 'danger' }}">
+                                {{ 'Success' if search.success else 'Failed' }}
+                            </span>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+async function cancelSubscription(id) {
+    if (!confirm('Are you sure you want to cancel this subscription?')) {
+        return;
+    }
+    
+    try {
+        const response = await fetch(`/admin/subscription/${id}/cancel`, {
+            method: 'POST'
+        });
+        
+        if (response.ok) {
+            location.reload();
+        } else {
+            alert('Failed to cancel subscription');
+        }
+    } catch (error) {
+        console.error('Error:', error);
+        alert('Failed to cancel subscription');
+    }
+}
+
+// Initialize search usage chart
+const ctx = document.getElementById('searchChart').getContext('2d');
+const searchData = {{ searches|map(attribute='timestamp')|list|tojson }};
+const dates = searchData.map(date => new Date(date).toLocaleDateString());
+const counts = {};
+
+dates.forEach(date => {
+    counts[date] = (counts[date] || 0) + 1;
+});
+
+new Chart(ctx, {
+    type: 'line',
+    data: {
+        labels: Object.keys(counts),
+        datasets: [{
+            label: 'Searches per Day',
+            data: Object.values(counts),
+            borderColor: 'rgb(75, 192, 192)',
+            tension: 0.1
+        }]
+    },
+    options: {
+        responsive: true,
+        scales: {
+            y: {
+                beginAtZero: true,
+                ticks: {
+                    stepSize: 1
+                }
+            }
+        }
+    }
+});
+</script>
+{% endblock %} 

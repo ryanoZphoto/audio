@@ -1,0 +1,312 @@
+{% extends "admin/base.html" %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <h2 class="mb-4">System Troubleshooting Dashboard</h2>
+
+    <!-- System Status -->
+    <div class="row mb-4">
+        <div class="col-md-12">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="card-title mb-0">System Status</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <!-- CPU Usage -->
+                        <div class="col-md-3">
+                            <div class="card bg-light">
+                                <div class="card-body">
+                                    <h6 class="card-subtitle mb-2">CPU Usage</h6>
+                                    <div class="progress mb-2">
+                                        <div class="progress-bar {% if system_stats.cpu_percent > 80 %}bg-danger{% elif system_stats.cpu_percent > 60 %}bg-warning{% else %}bg-success{% endif %}" 
+                                             role="progressbar" 
+                                             style="width: {{ system_stats.cpu_percent }}%">
+                                            {{ system_stats.cpu_percent }}%
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Memory Usage -->
+                        <div class="col-md-3">
+                            <div class="card bg-light">
+                                <div class="card-body">
+                                    <h6 class="card-subtitle mb-2">Memory Usage</h6>
+                                    <div class="progress mb-2">
+                                        <div class="progress-bar {% if system_stats.memory_percent > 80 %}bg-danger{% elif system_stats.memory_percent > 60 %}bg-warning{% else %}bg-success{% endif %}" 
+                                             role="progressbar" 
+                                             style="width: {{ system_stats.memory_percent }}%">
+                                            {{ system_stats.memory_percent }}%
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Disk Usage -->
+                        <div class="col-md-3">
+                            <div class="card bg-light">
+                                <div class="card-body">
+                                    <h6 class="card-subtitle mb-2">Disk Usage</h6>
+                                    <div class="progress mb-2">
+                                        <div class="progress-bar {% if system_stats.disk_percent > 80 %}bg-danger{% elif system_stats.disk_percent > 60 %}bg-warning{% else %}bg-success{% endif %}" 
+                                             role="progressbar" 
+                                             style="width: {{ system_stats.disk_percent }}%">
+                                            {{ system_stats.disk_percent }}%
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Clips Storage -->
+                        <div class="col-md-3">
+                            <div class="card bg-light">
+                                <div class="card-body">
+                                    <h6 class="card-subtitle mb-2">Clips Storage</h6>
+                                    <p class="card-text">{{ "%.2f"|format(system_stats.clips_folder_size) }} MB</p>
+                                    <button class="btn btn-sm btn-warning" onclick="clearClips()">Clear Clips</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- External Services -->
+    <div class="row mb-4">
+        <div class="col-md-12">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="card-title mb-0">External Services Status</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <!-- YouTube API -->
+                        <div class="col-md-6">
+                            <div class="card {% if youtube_status %}bg-success text-white{% else %}bg-danger text-white{% endif %}">
+                                <div class="card-body">
+                                    <h5 class="card-title">YouTube API</h5>
+                                    <p class="card-text">
+                                        Status: {{ 'Online' if youtube_status else 'Offline' }}
+                                    </p>
+                                    {% if not youtube_status %}
+                                    <button class="btn btn-light btn-sm" onclick="troubleshootYouTube()">
+                                        Troubleshoot
+                                    </button>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Stripe API -->
+                        <div class="col-md-6">
+                            <div class="card {% if stripe_status %}bg-success text-white{% else %}bg-danger text-white{% endif %}">
+                                <div class="card-body">
+                                    <h5 class="card-title">Stripe API</h5>
+                                    <p class="card-text">
+                                        Status: {{ 'Online' if stripe_status else 'Offline' }}
+                                    </p>
+                                    {% if not stripe_status %}
+                                    <button class="btn btn-light btn-sm" onclick="troubleshootStripe()">
+                                        Troubleshoot
+                                    </button>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Recent Errors -->
+    <div class="row mb-4">
+        <div class="col-md-12">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="card-title mb-0">Recent Errors</h5>
+                </div>
+                <div class="card-body">
+                    {% if recent_errors %}
+                    <div class="list-group">
+                        {% for error in recent_errors %}
+                        <div class="list-group-item list-group-item-danger">
+                            {{ error }}
+                        </div>
+                        {% endfor %}
+                    </div>
+                    {% else %}
+                    <p class="text-success">No recent errors found!</p>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Common Issues -->
+    <div class="row">
+        <div class="col-md-12">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="card-title mb-0">Common Issues & Solutions</h5>
+                </div>
+                <div class="card-body">
+                    <div class="accordion" id="issuesAccordion">
+                        {% for issue in common_issues %}
+                        <div class="accordion-item">
+                            <h2 class="accordion-header">
+                                <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#issue{{ loop.index }}">
+                                    {{ issue.symptom }}
+                                </button>
+                            </h2>
+                            <div id="issue{{ loop.index }}" class="accordion-collapse collapse" data-bs-parent="#issuesAccordion">
+                                <div class="accordion-body">
+                                    <h6>Possible Causes:</h6>
+                                    <ul>
+                                        {% for cause in issue.possible_causes %}
+                                        <li>{{ cause }}</li>
+                                        {% endfor %}
+                                    </ul>
+                                    <h6>Solutions:</h6>
+                                    <ul>
+                                        {% for solution in issue.solutions %}
+                                        <li>{{ solution }}</li>
+                                        {% endfor %}
+                                    </ul>
+                                </div>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Troubleshooting Scripts -->
+<script>
+function clearClips() {
+    if (confirm('Are you sure you want to clear all clips? This cannot be undone.')) {
+        fetch('/admin/clear-clips', {
+            method: 'POST'
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                location.reload();
+            } else {
+                alert('Error clearing clips: ' + data.error);
+            }
+        });
+    }
+}
+
+function troubleshootYouTube() {
+    const steps = [
+        'Checking API key...',
+        'Testing API connectivity...',
+        'Verifying quota limits...'
+    ];
+    
+    let currentStep = 0;
+    const modal = new bootstrap.Modal(document.getElementById('troubleshootModal'));
+    document.getElementById('troubleshootTitle').textContent = 'YouTube API Troubleshooting';
+    document.getElementById('troubleshootSteps').innerHTML = '';
+    
+    steps.forEach(step => {
+        const div = document.createElement('div');
+        div.className = 'alert alert-info';
+        div.textContent = step;
+        document.getElementById('troubleshootSteps').appendChild(div);
+    });
+    
+    modal.show();
+}
+
+function troubleshootStripe() {
+    const steps = [
+        'Checking API keys...',
+        'Testing webhook endpoints...',
+        'Verifying payment configuration...'
+    ];
+    
+    let currentStep = 0;
+    const modal = new bootstrap.Modal(document.getElementById('troubleshootModal'));
+    document.getElementById('troubleshootTitle').textContent = 'Stripe API Troubleshooting';
+    document.getElementById('troubleshootSteps').innerHTML = '';
+    
+    steps.forEach(step => {
+        const div = document.createElement('div');
+        div.className = 'alert alert-info';
+        div.textContent = step;
+        document.getElementById('troubleshootSteps').appendChild(div);
+    });
+    
+    modal.show();
+}
+
+// Auto-refresh system stats every 30 seconds
+setInterval(() => {
+    fetch('/admin/system-health')
+        .then(response => response.json())
+        .then(data => {
+            // Update system stats
+            updateSystemStats(data.stats);
+            // Update service status
+            updateServiceStatus(data.services);
+        });
+}, 30000);
+
+function updateSystemStats(stats) {
+    // Update progress bars and values
+    updateProgressBar('cpu', stats.cpu_percent);
+    updateProgressBar('memory', stats.memory_percent);
+    updateProgressBar('disk', stats.disk_percent);
+    document.querySelector('.clips-size').textContent = `${stats.clips_folder_size.toFixed(2)} MB`;
+}
+
+function updateProgressBar(type, value) {
+    const bar = document.querySelector(`.progress-bar.${type}`);
+    bar.style.width = `${value}%`;
+    bar.textContent = `${value}%`;
+    bar.className = `progress-bar ${type} ${value > 80 ? 'bg-danger' : value > 60 ? 'bg-warning' : 'bg-success'}`;
+}
+
+function updateServiceStatus(services) {
+    // Update service status cards
+    updateServiceCard('youtube', services.youtube_api);
+    updateServiceCard('stripe', services.stripe_api);
+}
+
+function updateServiceCard(service, status) {
+    const card = document.querySelector(`.card.${service}`);
+    card.className = `card ${service} ${status ? 'bg-success' : 'bg-danger'}`;
+    card.querySelector('.status').textContent = status ? 'Online' : 'Offline';
+}
+</script>
+
+<!-- Troubleshooting Modal -->
+<div class="modal fade" id="troubleshootModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="troubleshootTitle">Troubleshooting</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div id="troubleshootSteps"></div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %} 

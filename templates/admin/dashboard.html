@@ -1,0 +1,224 @@
+{% extends "admin/base.html" %}
+
+{% block title %}Dashboard{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+    <h1 class="h2">Dashboard</h1>
+</div>
+
+<div class="row">
+    <div class="col-md-6 col-lg-3 mb-4">
+        <div class="card">
+            <div class="card-body">
+                <h5 class="card-title">Active Subscriptions</h5>
+                <p class="card-text display-4">{{ active_subs|length }}</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-6 col-lg-3 mb-4">
+        <div class="card">
+            <div class="card-body">
+                <h5 class="card-title">Recent Searches</h5>
+                <p class="card-text display-4">{{ recent_searches|length }}</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-6 col-lg-3 mb-4">
+        <div class="card">
+            <div class="card-body">
+                <h5 class="card-title">Recent Payments</h5>
+                <p class="card-text display-4">{{ recent_payments|length }}</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-md-12 col-lg-6 mb-4">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="card-title mb-0">Recent Activity</h5>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table">
+                        <thead>
+                            <tr>
+                                <th>Time</th>
+                                <th>Type</th>
+                                <th>Details</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for search in recent_searches[:5] %}
+                            <tr>
+                                <td>{{ search.timestamp.strftime('%Y-%m-%d %H:%M') }}</td>
+                                <td>Search</td>
+                                <td>{{ search.search_query }}</td>
+                            </tr>
+                            {% endfor %}
+                            {% for payment in recent_payments[:5] %}
+                            <tr>
+                                <td>{{ payment.created_at.strftime('%Y-%m-%d %H:%M') }}</td>
+                                <td>Payment</td>
+                                <td>{{ payment.status }} ({{ payment.amount|default(0)/100 }}$)</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-12 col-lg-6 mb-4">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="card-title mb-0">Active Subscriptions</h5>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table">
+                        <thead>
+                            <tr>
+                                <th>Plan</th>
+                                <th>Customer</th>
+                                <th>Expires</th>
+                                <th>Usage</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for sub in active_subs %}
+                            <tr>
+                                <td>{{ sub.plan_type }}</td>
+                                <td>{{ sub.customer.email }}</td>
+                                <td>{{ sub.expiry_date.strftime('%Y-%m-%d') }}</td>
+                                <td>{{ sub.searches_used }}/{{ sub.search_limit }}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-md-12">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between">
+                <h5>Real-time Analytics</h5>
+                <div class="time-range">
+                    <button class="btn btn-sm btn-outline-secondary active" data-range="24h">24h</button>
+                    <button class="btn btn-sm btn-outline-secondary" data-range="7d">7d</button>
+                    <button class="btn btn-sm btn-outline-secondary" data-range="30d">30d</button>
+                </div>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-9">
+                        <canvas id="analyticsChart"></canvas>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="list-group" id="topPagesList">
+                            <div class="list-group-item active">Top Pages</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const chartCtx = document.getElementById('analyticsChart').getContext('2d');
+    let analyticsChart;
+    
+    async function loadAnalytics(range = '24h') {
+        try {
+            const response = await fetch(`/admin/dashboard/data?range=${range}`);
+            const data = await response.json();
+            
+            updateChart(data);
+            updateTopPages(data.top_pages);
+        } catch (error) {
+            console.error('Error loading analytics:', error);
+        }
+    }
+
+    function updateChart(data) {
+        if (analyticsChart) analyticsChart.destroy();
+        
+        analyticsChart = new Chart(chartCtx, {
+            type: 'line',
+            data: {
+                labels: data.labels,
+                datasets: [{
+                    label: 'Visitors',
+                    data: data.visitors,
+                    borderColor: '#4e73df',
+                    tension: 0.1,
+                    fill: true
+                }, {
+                    label: 'Purchases',
+                    data: data.purchases,
+                    borderColor: '#1cc88a',
+                    tension: 0.1,
+                    fill: true
+                }]
+            },
+            options: {
+                responsive: true,
+                plugins: {
+                    title: { display: false },
+                    tooltip: { mode: 'index' }
+                },
+                scales: {
+                    x: {
+                        display: true,
+                        title: { text: 'Time', display: true }
+                    },
+                    y: {
+                        display: true,
+                        title: { text: 'Count', display: true },
+                        beginAtZero: true
+                    }
+                }
+            }
+        });
+    }
+
+    function updateTopPages(pages) {
+        const container = document.getElementById('topPagesList');
+        container.innerHTML = '<div class="list-group-item active">Top Pages</div>';
+        
+        pages.forEach(page => {
+            const item = document.createElement('a');
+            item.className = 'list-group-item list-group-item-action d-flex justify-content-between';
+            item.innerHTML = `
+                <span>${page.path}</span>
+                <span class="badge bg-primary rounded-pill">${page.views}</span>
+            `;
+            container.appendChild(item);
+        });
+    }
+
+    // Initial load
+    loadAnalytics();
+
+    // Time range selector
+    document.querySelectorAll('.time-range button').forEach(btn => {
+        btn.addEventListener('click', () => {
+            document.querySelector('.time-range .active').classList.remove('active');
+            btn.classList.add('active');
+            loadAnalytics(btn.dataset.range);
+        });
+    });
+});
+</script>
+{% endblock %} 
