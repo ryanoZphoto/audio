@@ -6,7 +6,8 @@
     "nixpacksConfig": {
       "python": {
         "version": "3.11"
-      }
+      },
+      "packages": ["ffmpeg"]
     }
   },
   "deploy": {
