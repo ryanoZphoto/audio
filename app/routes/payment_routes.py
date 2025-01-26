@@ -1,8 +1,9 @@
+"""Payment routes."""
 import os
 import stripe
 import logging
 from flask import Blueprint, request, jsonify
-from app.models import db
+from app.extensions import db
 
 logger = logging.getLogger(__name__)
 

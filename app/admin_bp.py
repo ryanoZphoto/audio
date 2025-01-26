@@ -1,11 +1,38 @@
 """Admin blueprint routes."""
-from flask import Blueprint, current_app
-from app.utils.config_utils import get_secret
+import os
+from flask import Blueprint, request, jsonify
+from functools import wraps
 
-admin_bp = Blueprint('admin_panel', __name__)
+admin_bp = Blueprint('admin', __name__)
 
-def init_admin_config():
-    """Initialize admin configuration."""
-    admin_secret = get_secret('ADMIN_SECRET')
-    if admin_secret:
-        current_app.config['ADMIN_SECRET'] = admin_secret
+def admin_required(f):
+    """Decorator to require admin authentication."""
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        admin_secret = os.getenv('ADMIN_SECRET')
+        if not admin_secret:
+            return jsonify({
+                'error': 'Admin authentication not configured'
+            }), 500
+            
+        auth_header = request.headers.get('Authorization')
+        if not auth_header:
+            return jsonify({'error': 'No authorization header'}), 401
+            
+        try:
+            scheme, token = auth_header.split()
+            if scheme.lower() != 'bearer':
+                return jsonify({
+                    'error': 'Invalid authorization scheme'
+                }), 401
+                
+            if token != admin_secret:
+                return jsonify({'error': 'Invalid admin token'}), 401
+                
+            return f(*args, **kwargs)
+        except ValueError:
+            return jsonify({
+                'error': 'Invalid authorization header format'
+            }), 401
+            
+    return decorated_function

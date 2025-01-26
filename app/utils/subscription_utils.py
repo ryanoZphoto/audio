@@ -1,11 +1,15 @@
-from datetime import datetime
-from app.models import db, Subscription, SearchLog
+from datetime import datetime, timedelta
+from app.extensions import db
+from app.models import Subscription, SearchLog
 import stripe
-from app.utils.config_utils import get_secret
+import os
+from sqlalchemy import func
+
+# Initialize Stripe with API key
+stripe.api_key = os.getenv('STRIPE_SECRET_KEY')
 
 def init_stripe():
     """Initialize Stripe with secret key."""
-    stripe.api_key = get_secret('STRIPE_SECRET_KEY')
     if not stripe.api_key:
         raise ValueError("STRIPE_SECRET_KEY not configured")
 
@@ -68,25 +72,24 @@ def increment_search_count(subscription, query, success=True):
         return False, str(e)
 
 
-def get_subscription_stats(subscription_id):
-    """Get statistics for a subscription"""
-    subscription = Subscription.query.get(subscription_id)
-    if not subscription:
-        return None
+def get_subscription_stats():
+    """Get subscription statistics."""
+    total_subs = Subscription.query.count()
+    active_subs = Subscription.query.filter_by(status='active').count()
+    expired_subs = Subscription.query.filter_by(status='expired').count()
     
-    stats = {
-        'plan_type': subscription.plan_type,
-        'status': subscription.status,
-        'searches_used': subscription.searches_used,
-        'search_limit': subscription.search_limit,
-        'expiry_date': subscription.expiry_date,
-        'is_recurring': subscription.is_recurring,
-        'remaining_searches': (
-            subscription.search_limit - subscription.searches_used
-        )
+    # Get revenue in last 30 days
+    thirty_days_ago = datetime.utcnow() - timedelta(days=30)
+    recent_subs = Subscription.query.filter(
+        Subscription.created_at >= thirty_days_ago
+    ).count()
+    
+    return {
+        'total': total_subs,
+        'active': active_subs,
+        'expired': expired_subs,
+        'recent': recent_subs
     }
-    
-    return stats
 
 
 def check_subscription_renewal(subscription):

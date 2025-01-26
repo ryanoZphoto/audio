@@ -1,12 +1,16 @@
 """Monitoring routes."""
+import os
 import sys
 import uuid
+import psutil
+import logging
 from flask import Blueprint, jsonify, current_app, request
 from app.extensions import db, cache
 from datetime import datetime
-from app.utils.config_utils import get_secret
 
 monitoring_bp = Blueprint('monitoring', __name__, url_prefix='/api/monitoring')
+logger = logging.getLogger(__name__)
+
 
 def generate_request_id():
     """Generate a unique request ID."""
@@ -15,31 +19,13 @@ def generate_request_id():
 
 @monitoring_bp.route('/health', methods=['GET'])
 def health_check():
-    """Comprehensive health check endpoint."""
-    request_id = generate_request_id()
-    current_app.logger.info(f"Health check request: {request_id}")
-    
-    # Test database connection
-    db_status = check_database()
-    redis_status = check_redis()
-    
-    # Determine overall status
-    all_healthy = all([
-        db_status.get('status') == 'healthy',
-        redis_status.get('status') == 'healthy'
-    ])
-    
-    status_code = 200 if all_healthy else 503
-    status_text = 'healthy' if all_healthy else 'unhealthy'
-    
+    """Basic health check endpoint."""
     return jsonify({
-        'request_id': request_id,
-        'status': status_text,
-        'services': {
-            'database': db_status,
-            'redis': redis_status
-        }
-    }), status_code
+        'status': 'healthy',
+        'timestamp': datetime.utcnow().isoformat(),
+        'environment': os.getenv('FLASK_ENV', 'production'),
+        'request_id': os.getenv('REQUEST_ID', '')
+    })
 
 
 def check_database():
@@ -84,6 +70,7 @@ def check_redis():
 
 @monitoring_bp.route('/status', methods=['GET'])
 def status():
+    """Get application status."""
     current_app.logger.info('Status endpoint called')
     try:
         # Log request details
@@ -110,14 +97,14 @@ def status():
             'redis': 'connected' if cache_result == 'ok' else 'error',
             'debug_info': {
                 'python_version': sys.version,
-                'flask_env': get_secret('FLASK_ENV', 'production'),
-                'request_id': get_secret('REQUEST_ID', get_secret('REQUEST_ID', ''))
+                'flask_env': os.getenv('FLASK_ENV', 'production'),
+                'request_id': os.getenv('REQUEST_ID', '')
             }
         }
         current_app.logger.info(f'Status response: {response_data}')
         return jsonify(response_data)
     except Exception as e:
-        error_id = get_secret('REQUEST_ID', get_secret('REQUEST_ID', ''))
+        error_id = os.getenv('REQUEST_ID', '')
         current_app.logger.exception(
             f'Error in status endpoint (error_id: {error_id})'
         )
@@ -126,4 +113,54 @@ def status():
             'message': str(e),
             'error_id': error_id,
             'timestamp': datetime.utcnow().isoformat()
+        }), 500
+
+
+@monitoring_bp.route('/system', methods=['GET'])
+def system_info():
+    """Get system resource usage."""
+    try:
+        cpu_percent = psutil.cpu_percent()
+        memory = psutil.virtual_memory()
+        disk = psutil.disk_usage('/')
+        
+        return jsonify({
+            'success': True,
+            'cpu': {
+                'percent': cpu_percent
+            },
+            'memory': {
+                'total': memory.total,
+                'available': memory.available,
+                'percent': memory.percent
+            },
+            'disk': {
+                'total': disk.total,
+                'used': disk.used,
+                'free': disk.free,
+                'percent': disk.percent
+            }
+        })
+    except Exception as e:
+        logger.error(f"Error getting system info: {str(e)}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
+@monitoring_bp.route('/error', methods=['GET'])
+def error_info():
+    """Get error information."""
+    try:
+        error_id = os.getenv('REQUEST_ID', '')
+        return jsonify({
+            'success': True,
+            'error_id': error_id
+        })
+    except Exception as e:
+        logger.error(f"Error getting error info: {str(e)}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
         }), 500

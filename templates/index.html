@@ -67,12 +67,13 @@
         }
     </style>
     <!-- Google Analytics -->
-    <script async src="https://www.googletagmanager.com/gtag/js?id="YOUR-GA4-ID"></script>
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self' https://www.googletagmanager.com https://www.google-analytics.com; script-src 'self' 'unsafe-inline' https://www.googletagmanager.com https://www.google-analytics.com https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; font-src 'self' https://cdnjs.cloudflare.com data:; img-src 'self' data: https://www.google-analytics.com; connect-src 'self' https://www.google-analytics.com;">
+    <script async src="https://www.googletagmanager.com/gtag/js?id={{ ga4_id }}"></script>
     <script>
         window.dataLayer = window.dataLayer || [];
         function gtag(){dataLayer.push(arguments);}
         gtag('js', new Date());
-        gtag('config', 'YOUR-GA4-ID');
+        gtag('config', '{{ ga4_id }}');
     </script>
     <!-- Schema.org markup for Google -->
     <script type="application/ld+json">
@@ -124,7 +125,7 @@
             <div class="row align-items-center">
                 <div class="col-md-6">
                     <label for="accessToken" class="form-label">Access Token (optional)</label>
-                    <input type="text" class="form-control" id="accessToken" placeholder="Enter your access token">
+                    <input type="text" class="form-control" id="accessToken" placeholder="Enter your AudioSnipt access token">
                 </div>
                 <div class="col-md-6">
                     <p class="mb-0 mt-2">
@@ -133,6 +134,9 @@
                             Get More Searches
                         </button>
                     </p>
+                    <div class="search-limit-warning alert alert-danger mt-2" style="display: none;">
+                        You have no searches remaining. Please purchase more searches to continue.
+                    </div>
                 </div>
             </div>
         </div>
@@ -259,7 +263,7 @@
                         </div>
                         <div class="col-md-4">
                             <label for="channelId" class="form-label">Channel ID (optional)</label>
-                            <input type="text" class="form-control" id="channelId" placeholder="YouTube channel ID">
+                            <input type="text" class="form-control" id="channelId" placeholder="Optional: Enter YouTube channel ID to search specific channel">
                         </div>
                     </div>
                     
@@ -282,11 +286,12 @@
         </div>
         
         <!-- Loading Indicator -->
-        <div class="loading text-center" id="loading">
+        <div class="loading text-center mt-4" id="loading" style="display: none;">
             <div class="spinner-border text-primary" role="status">
                 <span class="visually-hidden">Loading...</span>
             </div>
-            <p class="mt-2">Searching videos...</p>
+            <p class="mt-2">Searching videos and analyzing transcripts...</p>
+            <p class="text-muted small">This may take a few moments</p>
         </div>
         
         <!-- Results -->
@@ -296,182 +301,215 @@
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
     <script>
         let searchesRemaining = 3;
+        let searchesUsed = 0;
+        let searchExpiry = null;
         
-        // Function to update searches remaining display
-        async function updateSearchesRemaining() {
-            const accessToken = document.getElementById('accessToken').value.trim();
-            const element = document.getElementById('searchesRemaining');
-            
+        // Check search limits on page load
+        window.addEventListener('load', async () => {
+            await checkSearchLimits();
+        });
+        
+        // Check search limits when token changes
+        document.getElementById('accessToken').addEventListener('change', async () => {
+            await checkSearchLimits();
+        });
+        
+        async function checkSearchLimits() {
             try {
+                const token = document.getElementById('accessToken').value.trim();
                 const response = await fetch('/check_searches', {
                     method: 'POST',
                     headers: {
-                        'Content-Type': 'application/json',
+                        'Content-Type': 'application/json'
                     },
-                    body: JSON.stringify({
-                        access_token: accessToken
-                    })
+                    body: JSON.stringify({ access_token: token })
                 });
                 
                 const data = await response.json();
-                
                 if (data.success) {
-                    if (accessToken) {
-                        element.textContent = `${data.searches_remaining} searches remaining`;
-                    } else {
-                        element.textContent = `${data.searches_remaining} free searches remaining`;
-                    }
                     searchesRemaining = data.searches_remaining;
-                } else {
-                    element.textContent = 'No searches remaining';
-                    searchesRemaining = 0;
+                    searchesUsed = data.searches_used;
+                    searchExpiry = new Date(data.expires);
+                    
+                    updateSearchLimitDisplay();
                 }
             } catch (error) {
-                console.error('Error checking searches:', error);
-                element.textContent = 'Error checking searches';
+                console.error('Error checking search limits:', error);
             }
         }
-
-        // Update searches remaining on page load and when token changes
-        document.addEventListener('DOMContentLoaded', updateSearchesRemaining);
-        document.getElementById('accessToken').addEventListener('input', updateSearchesRemaining);
-
-        document.getElementById('searchForm').addEventListener('submit', async (e) => {
-            e.preventDefault();
+        
+        function updateSearchLimitDisplay() {
+            const remainingText = document.getElementById('searchesRemaining');
+            const warningElement = document.querySelector('.search-limit-warning');
             
+            if (!remainingText) return; // Guard clause if element doesn't exist
+            
+            if (searchesRemaining > 0) {
+                remainingText.textContent = `${searchesRemaining} searches remaining`;
+                remainingText.classList.remove('text-danger');
+                if (warningElement) {
+                    warningElement.style.display = 'none';
+                }
+            } else {
+                remainingText.textContent = 'No searches remaining';
+                remainingText.classList.add('text-danger');
+                if (warningElement) {
+                    warningElement.style.display = 'block';
+                }
+            }
+        }
+        
+        async function performSearch() {
             if (searchesRemaining <= 0) {
-                alert('You have no searches remaining. Please get more searches to continue.');
+                alert('No searches remaining. Please purchase more searches to continue.');
                 showPaymentOptions();
                 return;
             }
-
-            const loading = document.getElementById('loading');
-            const results = document.getElementById('results');
-            const accessToken = document.getElementById('accessToken').value.trim();
             
-            loading.style.display = 'block';
-            results.innerHTML = '';
-
+            const personName = document.getElementById('personName').value;
+            const searchWord = document.getElementById('searchWord').value;
+            const token = document.getElementById('accessToken').value.trim();
+            
+            if (!personName || !searchWord) {
+                alert('Please enter both a name and a search phrase');
+                return;
+            }
+            
+            document.querySelector('.loading').style.display = 'block';
+            document.getElementById('results').innerHTML = '';
+            
             try {
                 const response = await fetch('/search', {
                     method: 'POST',
                     headers: {
-                        'Content-Type': 'application/json',
+                        'Content-Type': 'application/json'
                     },
                     body: JSON.stringify({
-                        access_token: accessToken,
-                        person_name: document.getElementById('personName').value,
-                        search_word: document.getElementById('searchWord').value,
-                        sort_order: document.getElementById('sortOrder').value,
-                        time_period: document.getElementById('timePeriod').value,
-                        channel_id: document.getElementById('channelId').value,
-                        stop_after_first: document.getElementById('stopAfterFirst').checked
+                        query: `${personName} ${searchWord}`,
+                        access_token: token
                     })
                 });
-
-                const data = await response.json();
                 
-                if (data.error) {
-                    results.innerHTML = `<div class="alert alert-danger">${data.error}</div>`;
-                    if (data.error === 'No searches remaining' || data.error === 'Free search limit reached') {
-                        showPaymentOptions();
-                    }
-                } else if (data.success) {
-                    // Update searches remaining after successful search
-                    await updateSearchesRemaining();
-                    
-                    // Display results
-                    if (data.matches.length === 0) {
-                        results.innerHTML = '<div class="alert alert-info">No matches found.</div>';
-                    } else {
-                        // Show summary
-                        results.innerHTML = `
-                            <div class="alert alert-info">
-                                Found ${data.matches.length} matches in ${data.videos_with_transcripts} videos 
-                                (checked ${data.total_videos} total videos)
-                            </div>
-                        `;
-                        
-                        // Show matches
-                        data.matches.forEach(match => {
-                            results.innerHTML += `
-                                <div class="card result-card">
-                                    <div class="card-body">
-                                        <h5 class="card-title">${match.video_title}</h5>
-                                        <h6 class="card-subtitle mb-2 text-muted">
-                                            ${match.channel_title} - ${match.publish_date}
-                                        </h6>
-                                        <p class="card-text">
-                                            <strong>Context:</strong> ${match.context}
-                                        </p>
-                                        <p>
-                                            <strong>Timestamp:</strong> 
-                                            <a href="${match.url}" target="_blank">
-                                                ${match.timestamp}
-                                            </a>
-                                        </p>
-                                        <div class="input-group mb-3" style="max-width: 300px;">
-                                            <input type="number" class="form-control clip-duration" 
-                                                   value="1.0" step="0.1" min="0.1"
-                                                   placeholder="Duration (seconds)">
-                                            <button class="btn btn-outline-primary" type="button"
-                                                    onclick="downloadClip('${match.video_id}', ${match.timestamp_seconds}, this)">
-                                                <i class="fas fa-download"></i> Download Clip
-                                            </button>
-                                        </div>
-                                    </div>
-                                </div>
-                            `;
-                        });
-                    }
+                const data = await response.json();
+                if (response.ok) {
+                    displayResults(data.results);
+                    await checkSearchLimits();  // Update remaining searches
+                } else {
+                    alert(data.error || 'Search failed. Please try again.');
                 }
             } catch (error) {
-                console.error('Error:', error);
-                results.innerHTML = '<div class="alert alert-danger">An error occurred while searching.</div>';
+                console.error('Search error:', error);
+                alert('An error occurred. Please try again.');
             } finally {
-                loading.style.display = 'none';
+                document.querySelector('.loading').style.display = 'none';
             }
-        });
-
+        }
+        
         function showPaymentOptions() {
             document.getElementById('paymentOptions').style.display = 'block';
             document.getElementById('paymentOptions').scrollIntoView({ behavior: 'smooth' });
         }
         
+        function displayResults(results) {
+            const resultsDiv = document.getElementById('results');
+            resultsDiv.innerHTML = '';
+            
+            if (!results || results.length === 0) {
+                resultsDiv.innerHTML = '<p>No matches found.</p>';
+                return;
+            }
+            
+            results.forEach(video => {
+                const videoCard = document.createElement('div');
+                videoCard.className = 'card result-card';
+                
+                let matchesHtml = '';
+                video.matches.forEach(match => {
+                    const timestamp = Math.floor(match.start);
+                    matchesHtml += `
+                        <div class="match-item mb-3">
+                            <p class="mb-1">
+                                <a href="https://youtube.com/watch?v=${video.id}&t=${timestamp}" 
+                                   target="_blank" class="text-primary">
+                                    ${formatTime(timestamp)}
+                                </a>
+                                - ${match.text}
+                            </p>
+                            <div class="d-flex align-items-center gap-2">
+                                <input type="number" class="form-control clip-duration" 
+                                       value="30" min="1" max="60">
+                                <button class="btn btn-sm btn-secondary" 
+                                        onclick="downloadClip('${video.id}', ${match.start}, this)">
+                                    Download Clip
+                                </button>
+                            </div>
+                        </div>
+                    `;
+                });
+                
+                videoCard.innerHTML = `
+                    <div class="card-body">
+                        <h5 class="card-title">
+                            <a href="https://youtube.com/watch?v=${video.id}" target="_blank">
+                                ${video.title}
+                            </a>
+                        </h5>
+                        <p class="card-text">${video.description}</p>
+                        <div class="matches">
+                            <h6>Matches:</h6>
+                            ${matchesHtml}
+                        </div>
+                    </div>
+                `;
+                
+                resultsDiv.appendChild(videoCard);
+            });
+        }
+        
         async function downloadClip(videoId, timestamp, button) {
-            const duration = button.parentElement.querySelector('.clip-duration').value;
-            const originalText = button.innerHTML;
+            const durationInput = button.previousElementSibling;
+            const duration = parseFloat(durationInput.value);
+            
+            if (isNaN(duration) || duration < 1 || duration > 60) {
+                alert('Please enter a valid duration between 1 and 60 seconds');
+                return;
+            }
             
             button.disabled = true;
-            button.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Processing...';
+            button.textContent = 'Downloading...';
             
             try {
                 const response = await fetch('/download_clip', {
                     method: 'POST',
                     headers: {
-                        'Content-Type': 'application/json',
+                        'Content-Type': 'application/json'
                     },
                     body: JSON.stringify({
                         video_id: videoId,
                         timestamp: timestamp,
                         duration: duration
-                    }),
+                    })
                 });
                 
                 const data = await response.json();
-                
                 if (data.success) {
-                    // Trigger download
-                    window.location.href = '/clips/' + data.file_path.split('/').pop();
+                    window.location.href = `/clips/${data.file_path.split('/').pop()}`;
                 } else {
-                    alert('Error: ' + data.error);
+                    alert(data.error || 'Failed to download clip');
                 }
             } catch (error) {
-                alert('Error: ' + error.message);
+                console.error('Download error:', error);
+                alert('An error occurred while downloading the clip');
             } finally {
                 button.disabled = false;
-                button.innerHTML = originalText;
+                button.textContent = 'Download Clip';
             }
+        }
+        
+        function formatTime(seconds) {
+            const minutes = Math.floor(seconds / 60);
+            const remainingSeconds = Math.floor(seconds % 60);
+            return `${minutes}:${remainingSeconds.toString().padStart(2, '0')}`;
         }
     </script>
 </body>

@@ -4,39 +4,48 @@ import psutil
 import requests
 from datetime import datetime, timedelta
 from flask import render_template, jsonify, request, current_app
-from flask_login import login_required
+from flask_login import login_required, current_user
 from flask_admin import Admin
 from flask_admin.contrib.sqla import ModelView
 from app.admin_bp import admin_bp
-from app.models import Customer, Subscription, SearchLog, PaymentLog, AdminUser
+from app.models import Customer, Subscription, SearchLog, PaymentLog, AdminUser, SearchUsage
 from app.utils.subscription_utils import get_subscription_stats
 from app.extensions import db
-from app.utils.config_utils import get_secret
 
 logger = logging.getLogger(__name__)
 
 
 def init_admin(app):
     """Initialize Flask-Admin."""
-    if 'admin' in app.blueprints:
-        return  # Already registered
-        
-    admin = Admin(app, name='AudioSnipt Admin', template_mode='bootstrap3')
+    admin = Admin(app, name='Admin Dashboard', template_mode='bootstrap4')
+    
+    # Secure admin views
+    class SecureModelView(ModelView):
+        def is_accessible(self):
+            admin_secret = os.getenv('ADMIN_SECRET')
+            if not admin_secret:
+                logger.warning("ADMIN_SECRET not configured")
+                return False
+                
+            auth_header = request.headers.get('Authorization')
+            if not auth_header:
+                return False
+                
+            try:
+                scheme, token = auth_header.split()
+                if scheme.lower() != 'bearer':
+                    return False
+                return token == admin_secret
+            except:
+                return False
     
     # Add model views
-    admin.add_view(ModelView(Customer, db.session))
-    admin.add_view(ModelView(Subscription, db.session))
-    admin.add_view(ModelView(SearchLog, db.session))
-    admin.add_view(ModelView(PaymentLog, db.session))
-    admin.add_view(ModelView(AdminUser, db.session))
+    admin.add_view(SecureModelView(AdminUser, db.session))
+    admin.add_view(SecureModelView(SearchUsage, db.session))
+    admin.add_view(SecureModelView(SearchLog, db.session))
+    admin.add_view(SecureModelView(Subscription, db.session))
     
-    logger.info("Flask-Admin initialized with model views")
-    
-    # Set up admin authentication if needed
-    admin_secret = get_secret('ADMIN_SECRET')
-    if admin_secret:
-        app.config['FLASK_ADMIN_SWATCH'] = 'cerulean'
-        app.config['ADMIN_SECRET'] = admin_secret
+    logger.info("Admin interface initialized")
 
 
 logger = logging.getLogger(__name__)

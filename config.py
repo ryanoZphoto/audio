@@ -3,8 +3,6 @@ import os
 import sys
 import logging
 from dotenv import load_dotenv
-from app.utils.config_utils import get_secret
-
 
 logger = logging.getLogger(__name__)
 
@@ -13,37 +11,38 @@ class Config:
     """Application configuration class."""
     
     def __init__(self):
-        """Initialize configuration with secrets."""
+        """Initialize configuration with environment variables."""
         logger.info("=== Loading Configuration ===")
         
         # Load database configuration
-        self.SQLALCHEMY_DATABASE_URI = get_secret('DATABASE_URL')
+        self.SQLALCHEMY_DATABASE_URI = os.getenv('DATABASE_URL')
         if not self.SQLALCHEMY_DATABASE_URI:
             raise ValueError("DATABASE_URL is required")
             
         # Load Redis configuration
-        self.REDIS_URL = get_secret('REDIS_URL')
+        self.REDIS_URL = os.getenv('REDIS_URL')
         if not self.REDIS_URL:
             raise ValueError("REDIS_URL is required")
             
         # Load application secrets
-        self.SECRET_KEY = get_secret('SECRET_KEY')
+        self.SECRET_KEY = os.getenv('SECRET_KEY')
         if not self.SECRET_KEY:
             raise ValueError("SECRET_KEY is required")
             
         # Load Stripe configuration
-        self.STRIPE_SECRET_KEY = get_secret('STRIPE_SECRET_KEY')
-        self.STRIPE_PUBLISHABLE_KEY = get_secret('STRIPE_PUBLISHABLE_KEY')
-        self.STRIPE_WEBHOOK_SECRET = get_secret('STRIPE_WEBHOOK_SECRET')
+        self.STRIPE_SECRET_KEY = os.getenv('STRIPE_SECRET_KEY')
+        self.STRIPE_PUBLISHABLE_KEY = os.getenv('STRIPE_PUBLISHABLE_KEY')
+        self.STRIPE_WEBHOOK_SECRET = os.getenv('STRIPE_WEBHOOK_SECRET')
         
         # Load YouTube configuration
-        self.YOUTUBE_API_KEY = get_secret('YOUTUBE_API_KEY')
+        self.YOUTUBE_API_KEY = os.getenv('YOUTUBE_API_KEY')
         
         # Additional configuration
         self.SQLALCHEMY_TRACK_MODIFICATIONS = False
         self.SESSION_COOKIE_SECURE = True
         self.SESSION_COOKIE_HTTPONLY = True
         self.SESSION_COOKIE_SAMESITE = 'Lax'
+        self.SERVER_NAME = 'audiosnipt.com'
 
         # Log environment information
         logger.info("=== Loading Configuration ===")
@@ -173,3 +172,37 @@ class Config:
         if not self.YOUTUBE_API_KEY:
             logger.error("YOUTUBE_API_KEY not set!")
             raise ValueError("YOUTUBE_API_KEY environment variable is required")
+
+
+class TestConfig:
+    """Testing configuration."""
+    
+    def __init__(self):
+        """Initialize test configuration."""
+        # Load environment variables
+        load_dotenv()
+        
+        # Database configuration
+        self.SQLALCHEMY_DATABASE_URI = os.getenv('TEST_DATABASE_URL', 'sqlite:///:memory:')
+        self.SQLALCHEMY_TRACK_MODIFICATIONS = False
+        
+        # Redis configuration
+        self.REDIS_URL = os.getenv('TEST_REDIS_URL', os.getenv('REDIS_URL'))
+        
+        # Application configuration
+        self.TESTING = True
+        self.SECRET_KEY = os.getenv('SECRET_KEY')
+        self.WTF_CSRF_ENABLED = False
+        self.SESSION_COOKIE_SECURE = False
+        self.SERVER_NAME = 'audiosnipt.com'
+        
+        # Stripe configuration
+        self.STRIPE_SECRET_KEY = os.getenv('STRIPE_SECRET_KEY')
+        self.STRIPE_PUBLISHABLE_KEY = os.getenv('STRIPE_PUBLISHABLE_KEY')
+        self.STRIPE_WEBHOOK_SECRET = os.getenv('STRIPE_WEBHOOK_SECRET')
+        
+        # YouTube configuration
+        self.YOUTUBE_API_KEY = os.getenv('YOUTUBE_API_KEY')
+        
+        # Email configuration
+        self.MAIL_SUPPRESS_SEND = True

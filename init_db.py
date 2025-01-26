@@ -2,7 +2,8 @@
 import os
 import sys
 import logging
-from app.utils.config_utils import get_secret
+from sqlalchemy import create_engine, text
+from dotenv import load_dotenv
 from app import create_app, db
 from app.models import AdminUser
 
@@ -10,17 +11,24 @@ from app.models import AdminUser
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+# Load environment variables
+load_dotenv()
+
 def init_db():
     """Initialize the database."""
     try:
-        app = create_app()
-        
-        # Verify database URL
-        db_url = get_secret('DATABASE_URL')
+        # Get database URL from environment
+        db_url = os.getenv('DATABASE_URL')
         if not db_url:
             raise ValueError("DATABASE_URL not configured")
             
-        logger.info(f"Initializing database: {db_url}")
+        # Create engine and test connection
+        engine = create_engine(db_url)
+        with engine.connect() as conn:
+            conn.execute(text('SELECT 1'))
+            logger.info("Database connection successful")
+            
+        app = create_app()
         
         with app.app_context():
             db.create_all()

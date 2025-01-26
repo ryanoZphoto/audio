@@ -1,11 +1,12 @@
-from flask import Blueprint, render_template, redirect, url_for, flash, request
+from flask import Blueprint, render_template, redirect, url_for, flash, request, jsonify
 from flask_login import LoginManager, login_user, logout_user, login_required, current_user
-from datetime import datetime
+from datetime import datetime, timedelta
 from app.models import AdminUser
 from app.extensions import db
 import logging
+import os
 import jwt
-from app.utils.config_utils import get_secret
+from functools import wraps
 
 auth_bp = Blueprint('auth', __name__)
 login_manager = LoginManager()
@@ -92,37 +93,31 @@ def logout():
     return redirect(url_for('auth.login'))
 
 
-def create_token(user_id):
-    """Create JWT token."""
-    try:
-        token_secret = get_secret('TOKEN_SECRET')
-        if not token_secret:
-            raise ValueError("TOKEN_SECRET not configured")
-            
-        return jwt.encode(
-            {'user_id': user_id},
-            token_secret,
-            algorithm='HS256'
-        )
-    except Exception as e:
-        logger.error(f"Error creating token: {e}")
-        return None
+def generate_token(user_id, expiry=None):
+    """Generate a JWT token for a user."""
+    if expiry is None:
+        expiry = datetime.utcnow() + timedelta(days=1)
+    
+    token_secret = os.getenv('TOKEN_SECRET')
+    if not token_secret:
+        raise ValueError("TOKEN_SECRET not configured")
+        
+    payload = {
+        'user_id': user_id,
+        'exp': expiry
+    }
+    return jwt.encode(payload, token_secret, algorithm='HS256')
 
 def verify_token(token):
-    """Verify JWT token."""
+    """Verify a JWT token."""
     try:
-        token_secret = get_secret('TOKEN_SECRET')
+        token_secret = os.getenv('TOKEN_SECRET')
         if not token_secret:
             raise ValueError("TOKEN_SECRET not configured")
             
-        return jwt.decode(
-            token,
-            token_secret,
-            algorithms=['HS256']
-        )
-    except jwt.InvalidTokenError as e:
-        logger.warning(f"Invalid token: {e}")
+        payload = jwt.decode(token, token_secret, algorithms=['HS256'])
+        return payload
+    except jwt.ExpiredSignatureError:
         return None
-    except Exception as e:
-        logger.error(f"Error verifying token: {e}")
+    except jwt.InvalidTokenError:
         return None

@@ -1,5 +1,5 @@
 """Main application routes."""
-from flask import Blueprint, render_template, send_file, jsonify
+from flask import Blueprint, render_template, send_file, jsonify, send_from_directory, current_app
 import os
 import logging
 from flask_sqlalchemy import SQLAlchemy
@@ -12,13 +12,26 @@ cache = Cache()
 
 
 @main_bp.route('/')
-def home():
-    """Render the home page."""
-    try:
-        return render_template('index.html')
-    except Exception as e:
-        logger.error(f"Error rendering home page: {e}")
-        return render_template('base.html', error="Error loading home page")
+def index():
+    """Render the main page."""
+    ga4_id = os.getenv('GA4_ID')
+    return render_template('index.html', ga4_id=ga4_id)
+
+
+@main_bp.route('/favicon.ico')
+def favicon():
+    """Serve the favicon."""
+    return send_from_directory(os.path.join(current_app.root_path, 'static'),
+                             'favicon.ico', mimetype='image/vnd.microsoft.icon')
+
+
+@main_bp.route('/static/<path:filename>')
+def static_files(filename):
+    """Serve static files."""
+    return send_from_directory(
+        os.path.join(current_app.root_path, '../static'),
+        filename
+    )
 
 
 @main_bp.route('/clips/<path:filename>')

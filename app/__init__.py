@@ -3,8 +3,10 @@ import sys
 import logging
 from flask import Flask
 from flask_cors import CORS
-from config import Config
-from .extensions import db, cache, login_manager
+from config import Config, TestConfig
+from .extensions import init_extensions, db, cache, login_manager, migrate
+from urllib.parse import urlparse
+from app.tasks.scheduler import init_scheduler
 
 # Configure logging first
 logging.basicConfig(level=logging.DEBUG)
@@ -25,41 +27,69 @@ except ImportError as e:
     raise
 
 
-def create_app():
-    """Flask application factory."""
-    app = Flask(__name__, 
-                template_folder='../templates',
-                static_folder='../static')
-    
-    # Load configuration
-    app.config.from_object(Config())
-    
-    # Configure SQLAlchemy before initializing
-    app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {
-        'connect_args': {}
-    }
-    app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv('DATABASE_URL')
-    app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
-    
-    # Initialize extensions
-    CORS(app)  # Enable CORS for all routes
-    db.init_app(app)
-    
-    # Configure Redis
-    redis_host = os.getenv('REDISHOST', 'localhost')
-    redis_port = os.getenv('REDISPORT', '6379')
-    redis_password = os.getenv('REDISPASSWORD', '')
-    redis_user = os.getenv('REDISUSER', 'default')
-    redis_url = f"redis://{redis_user}:{redis_password}@{redis_host}:{redis_port}"
-    
-    cache.init_app(app, config={
-        'CACHE_TYPE': 'redis',
-        'CACHE_REDIS_URL': redis_url,
-        'CACHE_REDIS_SSL': False,
-        'CACHE_REDIS_SSL_CERT_REQS': None
-    })
-    login_manager.init_app(app)
-    
+def create_app(config_name=None):
+    """Create Flask application."""
+    try:
+        logger.info("=== Initializing Flask Application ===")
+        logger.info(f"Python version: {sys.version}")
+        logger.info(f"Current directory: {os.getcwd()}")
+        
+        # Create Flask app
+        app = Flask(__name__, 
+                   template_folder='../templates',
+                   static_folder='../static')
+        
+        # Load the appropriate configuration
+        if config_name == 'testing':
+            app.config.from_object(TestConfig())
+        else:
+            # Configure SQLAlchemy before initializing
+            app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {
+                'pool_size': 10,
+                'pool_timeout': 30,
+                'pool_recycle': 1800,
+                'max_overflow': 2
+            }
+            app.config.from_object(Config())
+
+        # Configure CORS
+        CORS(app, resources={
+            r"/*": {
+                "origins": ["https://audiosnipt.com", "http://localhost:5000"],
+                "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+                "allow_headers": ["Content-Type", "Authorization", "X-Requested-With"],
+                "expose_headers": ["Content-Range", "X-Content-Range"],
+                "supports_credentials": True
+            }
+        })
+
+        # Initialize extensions
+        init_extensions(app)
+        
+        # Register blueprints
+        with app.app_context():
+            from .routes.main import main_bp
+            from .routes.search import search_bp
+            from .routes.admin_monitor import admin_monitor_bp
+            
+            app.register_blueprint(main_bp)
+            app.register_blueprint(search_bp)
+            app.register_blueprint(admin_monitor_bp)
+            
+            logger.info("All blueprints registered successfully")
+
+            # Initialize scheduler in production
+            if not app.config['TESTING']:
+                scheduler = init_scheduler()
+                logger.info("Background scheduler initialized")
+
+        return app
+    except Exception as e:
+        logger.error(f"Error creating application: {e}")
+        raise
+
+def register_blueprints(app):
+    """Register Flask blueprints."""
     # Register main blueprint first to ensure it handles root route
     from .routes import main_bp
     app.register_blueprint(main_bp)
@@ -83,4 +113,4 @@ def create_app():
     app.register_blueprint(payment_bp)
     app.register_blueprint(dashboard_bp)
     
-    return app
+    logger.info("All blueprints registered successfully")

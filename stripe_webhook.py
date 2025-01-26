@@ -1,11 +1,10 @@
 from flask import Blueprint, request, jsonify, render_template
 import stripe
 from datetime import datetime, timedelta
-import hmac
-import hashlib
 import os
 import logging
 from models import db, Customer, Subscription, PaymentLog
+from app.services.search_manager import SearchManager
 
 # Set up logging
 log_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'logs')
@@ -53,20 +52,9 @@ PRODUCT_PLANS = {
     }
 }
 
-def generate_token(plan_type, expiry_date, search_limit):
-    """Generate a token with plan details"""
-    token_secret = os.getenv('TOKEN_SECRET', 'your-secret-key-here')
-    message = f"{plan_type}:{expiry_date}:{search_limit}".encode()
-    signature = hmac.new(
-        token_secret.encode(),
-        message,
-        hashlib.sha256
-    ).hexdigest()
-    return f"{plan_type}:{expiry_date}:{search_limit}:{signature}"
-
 @stripe_bp.route('/webhook', methods=['POST'])
 def webhook():
-    """Handle Stripe webhook events"""
+    """Handle Stripe webhook events."""
     logger.info("Received webhook request")
     logger.info(f"Headers: {dict(request.headers)}")
     
@@ -77,7 +65,9 @@ def webhook():
 
     try:
         event = stripe.Webhook.construct_event(
-            payload, sig_header, webhook_secret
+            payload=payload,
+            sig_header=sig_header,
+            secret=webhook_secret
         )
         logger.info(f"Successfully constructed event: {event['type']}")
     except ValueError as e:
@@ -174,11 +164,8 @@ def webhook():
             db.session.commit()
             
             # Generate access token
-            token = generate_token(
-                plan_type, 
-                expiry_date.isoformat(), 
-                search_limit
-            )
+            search_mgr = SearchManager()
+            token = search_mgr.create_subscription_token(plan_type)
             
             logger.info(
                 f"Generated token for plan {plan_type} "
@@ -226,7 +213,7 @@ def webhook():
 
 @stripe_bp.route('/success')
 def success():
-    """Handle successful payments"""
+    """Handle successful payments."""
     token = request.args.get('token')
     if token:
         return render_template('success.html', token=token)
@@ -234,5 +221,5 @@ def success():
 
 @stripe_bp.route('/cancel')
 def cancel():
-    """Handle cancelled payments"""
+    """Handle cancelled payments."""
     return render_template('cancel.html') 
