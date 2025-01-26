@@ -46,7 +46,7 @@ def create_app():
     db.init_app(app)
     cache.init_app(app, config={
         'CACHE_TYPE': 'redis',
-        'CACHE_REDIS_URL': "redis://default:YsvFnWeygwfKLPLcNMScRohVdMhLhKcm@monorail.proxy.rlwy.net:54967/0",
+        'CACHE_REDIS_URL': os.getenv('REDIS_URL'),
         'CACHE_REDIS_SSL': True
     })
     login_manager.init_app(app)
