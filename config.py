@@ -151,6 +151,9 @@ class Config:
         # Add to Config class
         self.AI_MODEL_VERSION = "distilbert-base-cased-distilled-squad-v1.1"
         
+        # Admin token for monitoring
+        self.ADMIN_TOKEN = os.environ.get('ADMIN_TOKEN', 'your-secure-admin-token')
+        
         logger.info("Configuration loaded successfully")
 
     def _validate_config(self):

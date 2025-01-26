@@ -1,10 +1,20 @@
 """Admin monitoring routes."""
-from flask import Blueprint, render_template
+from flask import Blueprint, render_template, current_app, request, abort
 from app.extensions import cache, db
 from app.models import Subscription, Customer
 from datetime import datetime
+from functools import wraps
 
 admin_monitor_bp = Blueprint('admin_monitor', __name__)
+
+def admin_required(f):
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        admin_token = request.args.get('token')
+        if not admin_token or admin_token != current_app.config.get('ADMIN_TOKEN'):
+            abort(403)
+        return f(*args, **kwargs)
+    return decorated_function
 
 def get_task_status(task_name):
     """Get status of a scheduled task."""
@@ -34,6 +44,7 @@ def get_subscription_stats():
     }
 
 @admin_monitor_bp.route('/monitor')
+@admin_required
 def monitor():
     """Display system monitoring information."""
     # Get task statuses
