@@ -87,37 +87,41 @@ def search():
             # Process and return results
             videos = []
             for item in search_results.get('items', []):
-                video_id = item['id']['videoId']
-                transcript = get_video_transcript(video_id)
-                matches = []
-                
-                if transcript:
-                    matches = search_word_in_transcript(transcript, data.get('query', ''))
-                
-                if matches:
-                    videos.append({
-                        'id': video_id,
-                        'title': item['snippet']['title'],
-                        'description': item['snippet']['description'],
-                        'thumbnail': item['snippet']['thumbnails']['default']['url'],
-                        'matches': matches
-                    })
+                try:
+                    video_id = item['id']['videoId']
+                    transcript = get_video_transcript(video_id)
+                    matches = []
+                    
+                    if transcript:
+                        matches = search_word_in_transcript(transcript, query)
+                    
+                    if matches:
+                        videos.append({
+                            'id': video_id,
+                            'title': item['snippet']['title'],
+                            'description': item['snippet']['description'],
+                            'thumbnail': item['snippet']['thumbnails']['default']['url'],
+                            'matches': matches
+                        })
+                except Exception as video_error:
+                    logger.error(f"Error processing video {video_id}: {str(video_error)}")
+                    continue
 
             logger.info(f"Successfully found {len(videos)} videos with matches for query: {query}")
             return jsonify({
                 'success': True,
-                'results': videos  # Changed from 'videos' to 'results' to match frontend
+                'results': videos
             })
 
-        except Exception as e:
-            logger.error(f"YouTube API error: {str(e)}")
+        except Exception as youtube_error:
+            logger.error(f"YouTube API error: {str(youtube_error)}")
             return jsonify({
                 'error': 'Error searching YouTube videos',
-                'details': str(e)
+                'details': str(youtube_error)
             }), 500
 
     except Exception as e:
-        logger.error(f"Unexpected error in search route: {str(e)}")
+        logger.error(f"Unexpected error in search route: {str(e)}", exc_info=True)
         return jsonify({
             'error': 'Internal server error',
             'details': str(e)

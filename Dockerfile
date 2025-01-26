@@ -36,7 +36,17 @@ RUN pip install --user -r requirements.txt \
 # Stage 2: Optimized Runtime
 FROM python:3.10-slim-bookworm
 COPY --from=builder /root/.local /root/.local
+
+# Create app directory and set permissions
+RUN mkdir -p /app/static /app/static/img
+WORKDIR /app
+
+# Copy application files
 COPY . .
+
+# Ensure proper permissions
+RUN chown -R root:root /app && \
+    chmod -R 755 /app/static
 
 # Runtime dependencies
 RUN apt-get update && apt-get install -y --no-install-recommends \
