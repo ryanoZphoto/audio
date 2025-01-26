@@ -24,3 +24,4 @@ psycopg2-binary==2.9.9
 torch==2.3.0+cpu
 transformers==4.40.2
 tokenizers==0.19.1
+APScheduler==3.10.4
