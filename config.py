@@ -144,6 +144,14 @@ class Config:
                 f"{self.SESSION_COOKIE_DOMAIN}"
             )
         
+        # Add to Config class
+        self.AI_MODEL_CACHE = os.path.join(os.getcwd(), 'ai_models')
+        if not os.path.exists(self.AI_MODEL_CACHE):
+            os.makedirs(self.AI_MODEL_CACHE)
+        
+        # Add to Config class
+        self.AI_MODEL_VERSION = "distilbert-base-cased-distilled-squad-v1.1"
+        
         logger.info("Configuration loaded successfully")
 
     def _validate_config(self):

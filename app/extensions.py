@@ -10,15 +10,11 @@ from app.utils.config_utils import get_secret
 
 logger = logging.getLogger(__name__)
 
-# Initialize database
+# Initialize database with
 db = SQLAlchemy()
 
 # Configure Redis cache with secrets
-cache = Cache(config={
-    'CACHE_TYPE': 'redis',
-    'CACHE_REDIS_URL': get_secret('REDIS_URL'),
-    'CACHE_DEFAULT_TIMEOUT': 300
-})
+cache = Cache()
 
 # Initialize login manager
 login_manager = LoginManager()
@@ -27,7 +23,6 @@ login_manager.login_view = 'auth.login'
 # Log Redis configuration
 logger.info("=== Redis Configuration ===")
 logger.info(f"Redis URL: {get_secret('REDIS_URL')}")
-
 
 @event.listens_for(Engine, "connect")
 def connect(dbapi_connection, connection_record):

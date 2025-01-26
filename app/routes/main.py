@@ -2,9 +2,13 @@
 from flask import Blueprint, render_template, send_file, jsonify
 import os
 import logging
+from flask_sqlalchemy import SQLAlchemy
+from flask_caching import Cache
 
 logger = logging.getLogger(__name__)
 main_bp = Blueprint('main', __name__)
+db = SQLAlchemy()
+cache = Cache()
 
 
 @main_bp.route('/')
@@ -33,3 +37,41 @@ def download_file(filename):
     except Exception as e:
         logger.error(f"Error downloading file {filename}: {e}")
         return jsonify({"error": "Error downloading file"}), 500
+
+
+@main_bp.route('/db-check')
+def db_check():
+    try:
+        db.engine.connect()
+        return "Database connection successful", 200
+    except Exception as e:
+        return f"Connection failed: {str(e)}", 500
+
+
+@main_bp.route('/cache-test')
+def cache_test():
+    try:
+        cache.set('test', 'works', timeout=30)
+        return "Cache set successfully", 200
+    except Exception as e:
+        return f"Cache error: {str(e)}", 500
+
+
+@main_bp.route('/cache-check')
+def cache_check():
+    value = cache.get('test')
+    return f"Cache value: {value}", 200
+
+
+@main_bp.route('/redis-check')
+def redis_check():
+    try:
+        cache.set('test', 'works', timeout=10)
+        return f"Redis value: {cache.get('test')}", 200
+    except Exception as e:
+        return f"Redis error: {str(e)}", 500
+
+
+@main_bp.route('/health')
+def health_check():
+    return jsonify({"status": "healthy"}), 200

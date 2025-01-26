@@ -1,36 +1,57 @@
-# Use Python 3.12 slim image
-FROM python:3.12-slim
+# Stage 1: Unified Build Environment
+FROM python:3.10-slim-bookworm AS builder
 
-# Set working directory
-WORKDIR /app
-
-# Install system dependencies
-RUN apt-get update && apt-get install -y \
-    ffmpeg \
+# System dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    gcc \
+    g++ \
+    make \
+    cmake \
+    libssl-dev \
+    libgomp1 \
+    libopenblas-dev \
+    curl \
+    pkg-config \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy requirements first to leverage Docker cache
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+# Install Modern Rust
+RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y \
+    --default-toolchain stable
+ENV PATH="/root/.cargo/bin:${PATH}"
 
-# Copy application code
+# Build-Specific Environment
+ENV CARGO_NET_GIT_FETCH_WITH_CLI=true \
+    RUSTFLAGS="-C target-cpu=native" \
+    OPENSSL_DIR=/usr/lib/ssl
+
+# Install Python dependencies
+COPY requirements.txt .
+RUN pip install --upgrade pip setuptools wheel
+RUN pip install --user -r requirements.txt \
+    --extra-index-url https://download.pytorch.org/whl/cpu \
+    --no-cache-dir \
+    --use-deprecated=legacy-resolver \
+    --no-build-isolation
+
+# Stage 2: Optimized Runtime
+FROM python:3.10-slim-bookworm
+COPY --from=builder /root/.local /root/.local
 COPY . .
 
-# Create necessary directories
-RUN mkdir -p /app/logs /app/clips /app/.secrets
+# Runtime dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    libgomp1 \
+    libopenblas0 \
+    ffmpeg \
+    postgresql-client \
+    && rm -rf /var/lib/apt/lists/*
 
-# Set environment variables
-ENV PYTHONUNBUFFERED=1 \
+# Final configuration
+ENV PATH="/root/.local/bin:${PATH}" \
+    PYTHONUNBUFFERED=1 \
     FLASK_APP=wsgi.py \
     FLASK_ENV=production \
     PORT=8000
 
-# Create and set permissions for entrypoint script
-COPY entrypoint.sh /app/entrypoint.sh
-RUN chmod +x /app/entrypoint.sh
-
-# Expose port
 EXPOSE 8000
-
-# Set entrypoint
-CMD ["/app/entrypoint.sh"]
+CMD ["gunicorn", "wsgi:app", "-b", "0.0.0.0:8000"]

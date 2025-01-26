@@ -1,12 +1,12 @@
 # Updated: 2025-01-20 06:45
-Flask==2.3.2
+Flask==3.0.2
 Flask-CORS==4.0.0
-Werkzeug==2.3.7
-gunicorn==20.1.0
+Werkzeug==3.0.1
+gunicorn==21.2.0
 google-api-python-client==2.108.0
 youtube-transcript-api==0.6.1
 python-dotenv==1.0.0
-yt-dlp==2023.12.30
+yt-dlp==2024.04.09
 ffmpeg-python==0.2.0
 Flask-SQLAlchemy==3.1.1
 Flask-Login==0.6.3
@@ -14,10 +14,13 @@ Flask-Limiter==3.5.0
 Flask-Migrate==4.0.5
 Flask-Caching==2.1.0
 Flask-Admin==1.6.1
-redis>=3.0.0,<4.0.0
-psycopg2-binary==2.9.9
-SQLAlchemy==2.0.23
+redis==5.0.4
+SQLAlchemy==2.0.25
 stripe==7.6.0
 psutil==5.9.8
-cryptography==41.0.7
+cryptography==42.0.8
 PyJWT==2.8.0
+psycopg2-binary==2.9.9
+torch==2.3.0+cpu
+transformers==4.40.2
+tokenizers==0.19.1

@@ -1,6 +1,7 @@
 import os
 import sys
 import logging
+from sqlalchemy.sql import text
 
 # Configure logging
 logging.basicConfig(
@@ -34,12 +35,14 @@ try:
     application = create_app()
     app = application  # For Gunicorn
     
+    # Application is now fully initialized
+    
     # Verify critical components
-    with app.app_context():
+    with application.app_context():
         # Test database connection
         logger.info("Testing database connection...")
         from app.extensions import db
-        db.session.execute('SELECT 1')
+        db.session.execute(text('SELECT 1'))
         db.session.commit()
         logger.info("Database connection successful")
         

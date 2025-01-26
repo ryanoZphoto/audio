@@ -31,7 +31,13 @@ def get_secret(name, default=None):
     # Map environment variable names to secret file names
     secret_mappings = {
         'SECRET_KEY': 'flask-secret-key',
-        # Add other mappings if needed
+        'DATABASE_URL': 'database-url',
+        'REDIS_URL': 'redis-url',
+        'STRIPE_SECRET_KEY': 'stripe-secret-key',
+        'STRIPE_PUBLISHABLE_KEY': 'stripe-publishable-key',
+        'STRIPE_WEBHOOK_SECRET': 'stripe-webhook-secret',
+        'YOUTUBE_API_KEY': 'youtube-api-key',
+        'TOKEN_SECRET': 'token-secret'
     }
     
     # Try secrets manager first, fall back to environment variables

@@ -11,12 +11,27 @@ from app.utils.youtube_search_and_clip import (
 )
 import logging
 from flask_caching import Cache
+from transformers import pipeline
+import torch
+from flask import current_app
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)  # Set to DEBUG level
 
 search_bp = Blueprint('search', __name__)
 cache = None
+
+# Defer configuration access until request time
+def get_ai_model():
+    return current_app.config['AI_MODEL_VERSION']
+
+def get_qa_pipeline():
+    return pipeline(
+        "question-answering",
+        model=get_ai_model(),
+        device_map="auto",
+        torch_dtype=torch.float16 if torch.cuda.is_available() else torch.float32
+    )
 
 def init_search_bp(app_cache):
     """Initialize the search blueprint with cache instance"""
@@ -26,7 +41,7 @@ def init_search_bp(app_cache):
 
 @search_bp.route('/search', methods=['POST'])
 def search():
-    """Search for phrases in YouTube videos."""
+    """Search for phrases in YouTube videos with AI enhancement."""
     logger.info("Received search request")
     data = request.get_json()
     
@@ -137,6 +152,9 @@ def search():
     
     youtube = setup_youtube_api()
     
+    model = get_ai_model()
+    qa_pipeline = get_qa_pipeline()
+    
     # Search for videos
     search_response = search_videos(
         youtube, 
@@ -160,31 +178,41 @@ def search():
         transcript = get_video_transcript(video_id)
         if transcript:
             videos_with_transcripts += 1
-            matches = search_word_in_transcript(
-                transcript, 
-                search_word,
-                stop_after_first_match=stop_after_first
-            )
+            all_chunk_matches = []
             
-            if matches:
-                video_url = f"https://youtube.com/watch?v={video_id}"
-                for match in matches:
-                    timestamp = format_timestamp(match['timestamp'])
-                    ts_url = f"{video_url}&t={int(match['timestamp'])}s"
-                    
-                    all_matches.append({
-                        'video_id': video_id,
-                        'video_title': video_title,
-                        'channel_title': channel_title,
-                        'publish_date': publish_date,
-                        'timestamp': timestamp,
-                        'timestamp_seconds': match['timestamp'],
-                        'url': ts_url,
-                        'context': match['text']
-                    })
-                    
-                    if stop_after_first:
-                        break
+            for chunk in process_transcript_chunks(transcript):
+                ai_results = qa_pipeline(
+                    context=chunk,
+                    question=f"Where does {person_name} mention {search_word}?"
+                )
+                if ai_results['score'] > 0.1:
+                    all_chunk_matches.append(ai_results)
+            
+            # After AI processing
+            if not all_chunk_matches:
+                # Fallback to original keyword search
+                matches = search_word_in_transcript(
+                    transcript, 
+                    search_word,
+                    stop_after_first_match=stop_after_first
+                )
+            else:
+                matches = process_ai_results(all_chunk_matches)
+            
+            for match in matches:
+                timestamp = format_timestamp(match['start'])
+                ts_url = f"https://youtube.com/watch?v={video_id}&t={int(match['start'])}s"
+                
+                all_matches.append({
+                    'video_id': video_id,
+                    'video_title': video_title,
+                    'channel_title': channel_title,
+                    'publish_date': publish_date,
+                    'timestamp': timestamp,
+                    'timestamp_seconds': match['start'],
+                    'url': ts_url,
+                    'context': match['answer']
+                })
                 
                 if stop_after_first and all_matches:
                     break
@@ -304,3 +332,8 @@ def search_videos(youtube, person_name, **kwargs):
     except Exception as e:
         logger.error(f"YouTube API search error: {str(e)}")
         return {'items': []}
+
+def process_transcript_chunks(transcript, chunk_size=512):
+    """Split long transcripts into manageable chunks."""
+    for i in range(0, len(transcript), chunk_size):
+        yield transcript[i:i+chunk_size]

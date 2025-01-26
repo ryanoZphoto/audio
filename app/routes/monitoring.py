@@ -12,19 +12,34 @@ def generate_request_id():
     """Generate a unique request ID."""
     return str(uuid.uuid4())
 
+
 @monitoring_bp.route('/health', methods=['GET'])
 def health_check():
-    """Health check endpoint."""
+    """Comprehensive health check endpoint."""
     request_id = generate_request_id()
-    db_url = get_secret('DATABASE_URL')
-    redis_url = get_secret('REDIS_URL')
+    current_app.logger.info(f"Health check request: {request_id}")
+    
+    # Test database connection
+    db_status = check_database()
+    redis_status = check_redis()
+    
+    # Determine overall status
+    all_healthy = all([
+        db_status.get('status') == 'healthy',
+        redis_status.get('status') == 'healthy'
+    ])
+    
+    status_code = 200 if all_healthy else 503
+    status_text = 'healthy' if all_healthy else 'unhealthy'
     
     return jsonify({
         'request_id': request_id,
-        'status': 'healthy' if db_url and redis_url else 'unhealthy',
-        'database': 'connected' if db_url else 'disconnected',
-        'redis': 'connected' if redis_url else 'disconnected'
-    })
+        'status': status_text,
+        'services': {
+            'database': db_status,
+            'redis': redis_status
+        }
+    }), status_code
 
 
 def check_database():

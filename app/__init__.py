@@ -34,10 +34,21 @@ def create_app():
     # Load configuration
     app.config.from_object(Config())
     
+    # Configure SQLAlchemy before initializing
+    app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {
+        'connect_args': {}
+    }
+    app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv('DATABASE_URL').replace('postgresql://', 'postgresql+psycopg2://')
+    app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+    
     # Initialize extensions
     CORS(app)  # Enable CORS for all routes
     db.init_app(app)
-    cache.init_app(app)
+    cache.init_app(app, config={
+        'CACHE_TYPE': 'redis',
+        'CACHE_REDIS_URL': "redis://default:YsvFnWeygwfKLPLcNMScRohVdMhLhKcm@monorail.proxy.rlwy.net:54967/0",
+        'CACHE_REDIS_SSL': True
+    })
     login_manager.init_app(app)
     
     # Register main blueprint first to ensure it handles root route
