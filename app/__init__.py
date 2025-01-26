@@ -38,16 +38,25 @@ def create_app():
     app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {
         'connect_args': {}
     }
-    app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv('DATABASE_URL').replace('postgresql://', 'postgresql+psycopg2://')
+    app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv('DATABASE_URL')
     app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
     
     # Initialize extensions
     CORS(app)  # Enable CORS for all routes
     db.init_app(app)
+    
+    # Configure Redis
+    redis_host = os.getenv('REDISHOST', 'localhost')
+    redis_port = os.getenv('REDISPORT', '6379')
+    redis_password = os.getenv('REDISPASSWORD', '')
+    redis_user = os.getenv('REDISUSER', 'default')
+    redis_url = f"redis://{redis_user}:{redis_password}@{redis_host}:{redis_port}"
+    
     cache.init_app(app, config={
         'CACHE_TYPE': 'redis',
-        'CACHE_REDIS_URL': os.getenv('REDIS_URL'),
-        'CACHE_REDIS_SSL': True
+        'CACHE_REDIS_URL': redis_url,
+        'CACHE_REDIS_SSL': False,
+        'CACHE_REDIS_SSL_CERT_REQS': None
     })
     login_manager.init_app(app)
     
