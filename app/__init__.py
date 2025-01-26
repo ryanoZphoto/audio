@@ -1,14 +1,10 @@
 import os
 import sys
 import logging
-from flask import Flask, request, jsonify
+from flask import Flask
 from flask_cors import CORS
-from dotenv import load_dotenv
 from config import Config
-
 from .extensions import db, cache, login_manager
-from . import models  # Import models after extensions
-from app.utils.local_secrets import LocalSecretsManager as SecretsManager
 
 # Configure logging first
 logging.basicConfig(level=logging.DEBUG)
@@ -31,12 +27,15 @@ except ImportError as e:
 
 def create_app():
     """Flask application factory."""
-    app = Flask(__name__)
+    app = Flask(__name__, 
+                template_folder='../templates',
+                static_folder='../static')
     
     # Load configuration
     app.config.from_object(Config())
     
     # Initialize extensions
+    CORS(app)  # Enable CORS for all routes
     db.init_app(app)
     cache.init_app(app)
     login_manager.init_app(app)

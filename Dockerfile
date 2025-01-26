@@ -9,7 +9,7 @@ RUN apt-get update && apt-get install -y \
     ffmpeg \
     && rm -rf /var/lib/apt/lists/*
 
-# Install Python dependencies
+# Copy requirements first to leverage Docker cache
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
@@ -20,9 +20,10 @@ COPY . .
 RUN mkdir -p /app/logs /app/clips /app/.secrets
 
 # Set environment variables
-ENV PYTHONUNBUFFERED=1
-ENV FLASK_APP=wsgi.py
-ENV FLASK_ENV=production
+ENV PYTHONUNBUFFERED=1 \
+    FLASK_APP=wsgi.py \
+    FLASK_ENV=production \
+    PORT=8000
 
 # Create and set permissions for entrypoint script
 COPY entrypoint.sh /app/entrypoint.sh
@@ -32,4 +33,4 @@ RUN chmod +x /app/entrypoint.sh
 EXPOSE 8000
 
 # Set entrypoint
-ENTRYPOINT ["/app/entrypoint.sh"]
+CMD ["/app/entrypoint.sh"]

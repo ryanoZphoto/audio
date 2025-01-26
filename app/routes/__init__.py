@@ -20,6 +20,7 @@ from .search import *  # noqa
 from .blog import *  # noqa
 from .payment_routes import *  # noqa
 from .dashboard_routes import *  # noqa
+from .main import *  # noqa
 
 # Export blueprints
 __all__ = [
