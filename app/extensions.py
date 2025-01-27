@@ -86,13 +86,35 @@ def init_extensions(app):
     
     # Initialize Flask-Cache with Redis config
     if not app.config.get('TESTING'):
+        redis_url = os.getenv('REDIS_URL', 'redis://localhost:6379/0')
         cache_config = {
             'CACHE_TYPE': 'redis',
-            'CACHE_REDIS_URL': os.getenv('REDIS_URL', 'redis://localhost:6379/0'),
-            'CACHE_DEFAULT_TIMEOUT': 300
+            'CACHE_REDIS_URL': redis_url,
+            'CACHE_DEFAULT_TIMEOUT': 300,
+            'CACHE_OPTIONS': {
+                'socket_timeout': 5,
+                'socket_connect_timeout': 5,
+                'retry_on_timeout': True,
+                'max_connections': 20,
+                'ssl_cert_reqs': None  # Don't verify SSL cert
+            }
         }
-        logger.info(f"Initializing Redis cache with URL: {cache_config['CACHE_REDIS_URL']}")
-        cache.init_app(app, config=cache_config)
+        logger.info("=== Redis Cache Configuration ===")
+        logger.info(f"Redis URL format: {redis_url.split('@')[0].split(':')[0]}://*****@{redis_url.split('@')[-1] if '@' in redis_url else redis_url.split('://')[-1]}")
+        try:
+            cache.init_app(app, config=cache_config)
+            # Test the connection
+            cache.set('test_key', 'test_value')
+            test_result = cache.get('test_key')
+            if test_result == 'test_value':
+                logger.info("Redis connection test successful")
+            else:
+                logger.error("Redis connection test failed - could not verify test value")
+        except Exception as e:
+            logger.error(f"Redis initialization error: {str(e)}")
+            # Fall back to simple cache if Redis fails
+            logger.warning("Falling back to simple cache")
+            cache.init_app(app, config={'CACHE_TYPE': 'simple'})
     else:
         # Use simple cache for testing
         logger.info("Using simple cache for testing")
