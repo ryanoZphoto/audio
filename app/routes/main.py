@@ -87,4 +87,5 @@ def redis_check():
 
 @main_bp.route('/health')
 def health_check():
+    """Health check endpoint for Railway."""
     return jsonify({"status": "healthy"}), 200
