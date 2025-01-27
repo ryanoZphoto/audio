@@ -16,8 +16,13 @@ logger = logging.getLogger(__name__)
 db = SQLAlchemy()
 migrate = Migrate()
 
-# Configure Redis cache
-cache = Cache()
+# Configure Redis cache with default URL
+cache_config = {
+    'CACHE_TYPE': 'redis',
+    'CACHE_REDIS_URL': os.getenv('REDIS_URL', 'redis://localhost:6379/0'),
+    'CACHE_DEFAULT_TIMEOUT': 300
+}
+cache = Cache(config=cache_config)
 
 # Initialize login manager
 login_manager = LoginManager()
@@ -51,7 +56,6 @@ def connect(dbapi_connection, connection_record):
     except Exception as e:
         logger.error(f"Error getting database version: {e}")
 
-
 @event.listens_for(Engine, "checkout")
 def checkout(dbapi_connection, connection_record, connection_proxy):
     logger.info("Database connection checked out")
@@ -64,17 +68,17 @@ def checkout(dbapi_connection, connection_record, connection_proxy):
         logger.error(f"Error during connection checkout: {e}")
         raise  # Force SQLAlchemy to get a new connection
 
-
 @event.listens_for(Engine, "checkin")
 def checkin(dbapi_connection, connection_record):
     logger.info("Database connection checked in")
     try:
-        if not connection_record.connection._closed:
-            logger.info("Connection is still valid")
-        else:
-            logger.warning("Connection was closed")
+        cursor = dbapi_connection.cursor()
+        cursor.execute("SELECT 1")
+        cursor.close()
+        logger.info("Connection is valid")
     except Exception as e:
-        logger.error(f"Error checking connection state: {e}")
+        logger.warning("Connection may be closed")
+        logger.error(f"Error checking connection: {e}")
 
 def init_extensions(app):
     """Initialize all Flask extensions."""
@@ -86,12 +90,12 @@ def init_extensions(app):
     # Initialize Flask-Migrate
     migrate.init_app(app, db)
     
-    # Initialize Flask-Cache with config from app
-    cache_config = app.config.get('CACHE_CONFIG', {
-        'CACHE_TYPE': 'simple',
-        'CACHE_DEFAULT_TIMEOUT': 300
-    })
-    cache.init_app(app, config=cache_config)
+    # Initialize Flask-Cache with Redis config
+    if not app.config.get('TESTING'):
+        cache.init_app(app)
+    else:
+        # Use simple cache for testing
+        cache.init_app(app, config={'CACHE_TYPE': 'simple'})
     
     # Initialize Flask-Login
     login_manager.init_app(app)
@@ -104,4 +108,4 @@ def init_extensions(app):
     logger.info("Flask extensions initialized successfully")
 
 # Keep existing code but ensure db is properly exported
-__all__ = ['db', 'cache', 'login_manager']
+__all__ = ['db', 'cache', 'login_manager', 'mail']
