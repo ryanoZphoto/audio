@@ -5,6 +5,7 @@ from flask_sqlalchemy import SQLAlchemy
 from flask_migrate import Migrate
 from flask_caching import Cache
 from flask_login import LoginManager
+from flask_mail import Mail
 from sqlalchemy import event
 from sqlalchemy.engine import Engine
 from sqlalchemy.exc import OperationalError
@@ -21,6 +22,9 @@ cache = Cache()
 # Initialize login manager
 login_manager = LoginManager()
 login_manager.login_view = 'auth.login'
+
+# Initialize mail
+mail = Mail()
 
 @login_manager.user_loader
 def load_user(user_id):
@@ -93,6 +97,9 @@ def init_extensions(app):
     login_manager.init_app(app)
     login_manager.login_view = 'auth.login'
     login_manager.login_message_category = 'info'
+    
+    # Initialize Flask-Mail
+    mail.init_app(app)
     
     logger.info("Flask extensions initialized successfully")
 

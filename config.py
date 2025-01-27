@@ -37,6 +37,14 @@ class Config:
         # Load YouTube configuration
         self.YOUTUBE_API_KEY = os.getenv('YOUTUBE_API_KEY')
         
+        # Email configuration
+        self.MAIL_SERVER = os.getenv('MAIL_SERVER', 'smtp.gmail.com')
+        self.MAIL_PORT = int(os.getenv('MAIL_PORT', 587))
+        self.MAIL_USE_TLS = os.getenv('MAIL_USE_TLS', 'True').lower() == 'true'
+        self.MAIL_USERNAME = os.getenv('MAIL_USERNAME')
+        self.MAIL_PASSWORD = os.getenv('MAIL_PASSWORD')
+        self.MAIL_DEFAULT_SENDER = os.getenv('MAIL_DEFAULT_SENDER')
+        
         # Additional configuration
         self.SQLALCHEMY_TRACK_MODIFICATIONS = False
         self.SESSION_COOKIE_SECURE = True
