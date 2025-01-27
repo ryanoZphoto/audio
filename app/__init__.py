@@ -4,8 +4,7 @@ import logging
 from flask import Flask
 from flask_cors import CORS
 from config import Config, TestConfig
-from .extensions import init_extensions, db, cache, login_manager, migrate
-from urllib.parse import urlparse
+from .extensions import init_extensions
 from app.tasks.scheduler import init_scheduler
 
 # Configure logging first
@@ -43,7 +42,6 @@ def create_app(config_name=None):
         if config_name == 'testing':
             app.config.from_object(TestConfig())
         else:
-            # Configure SQLAlchemy before initializing
             app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {
                 'pool_size': 10,
                 'pool_timeout': 30,
@@ -55,10 +53,11 @@ def create_app(config_name=None):
         # Configure CORS
         CORS(app, resources={
             r"/*": {
-                "origins": ["https://audiosnipt.com", "http://localhost:5000"],
+                "origins": ["https://audiosnipt.com", 
+                           "http://localhost:5000"],
                 "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-                "allow_headers": ["Content-Type", "Authorization", "X-Requested-With"],
-                "expose_headers": ["Content-Range", "X-Content-Range"],
+                "allow_headers": ["Content-Type", "Authorization"],
+                "expose_headers": ["Content-Range"],
                 "supports_credentials": True
             }
         })
@@ -80,7 +79,7 @@ def create_app(config_name=None):
 
             # Initialize scheduler in production
             if not app.config['TESTING']:
-                scheduler = init_scheduler()
+                init_scheduler()
                 logger.info("Background scheduler initialized")
 
         return app
