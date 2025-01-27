@@ -1,6 +1,13 @@
 # Updated: 2025-01-20 06:45
 Flask==3.0.2
 Flask-CORS==4.0.0
+Flask-SQLAlchemy==3.1.1
+Flask-Login==0.6.3
+Flask-Limiter==3.5.0
+Flask-Mail==0.9.1
+Flask-Migrate==4.0.5
+Flask-Caching==2.1.0
+Flask-Admin==1.6.1
 Werkzeug==3.0.1
 gunicorn==21.2.0
 google-api-python-client==2.108.0
@@ -8,12 +15,6 @@ youtube-transcript-api==0.6.1
 python-dotenv==1.0.0
 yt-dlp==2024.04.09
 ffmpeg-python==0.2.0
-Flask-SQLAlchemy==3.1.1
-Flask-Login==0.6.3
-Flask-Limiter==3.5.0
-Flask-Migrate==4.0.5
-Flask-Caching==2.1.0
-Flask-Admin==1.6.1
 redis==5.0.4
 SQLAlchemy==2.0.25
 stripe==7.6.0
