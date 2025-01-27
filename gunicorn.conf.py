@@ -39,7 +39,7 @@ logconfig_dict = {
 }
 
 # Server socket
-bind = f"0.0.0.0:{os.getenv('PORT', '8000')}"
+bind = f"0.0.0.0:{os.getenv('PORT', '8080')}"
 backlog = 2048
 
 # Worker processes - use 2-4 workers per CPU core

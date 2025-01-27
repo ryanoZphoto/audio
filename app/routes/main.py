@@ -6,26 +6,26 @@ from flask_sqlalchemy import SQLAlchemy
 from flask_caching import Cache
 
 logger = logging.getLogger(__name__)
-main_bp = Blueprint('main', __name__)
+main = Blueprint('main', __name__)
 db = SQLAlchemy()
 cache = Cache()
 
 
-@main_bp.route('/')
+@main.route('/')
 def index():
     """Render the main page."""
     ga4_id = os.getenv('GA4_ID')
     return render_template('index.html', ga4_id=ga4_id)
 
 
-@main_bp.route('/favicon.ico')
+@main.route('/favicon.ico')
 def favicon():
     """Serve the favicon."""
     return send_from_directory(os.path.join(current_app.root_path, 'static'),
                              'favicon.ico', mimetype='image/vnd.microsoft.icon')
 
 
-@main_bp.route('/static/<path:filename>')
+@main.route('/static/<path:filename>')
 def static_files(filename):
     """Serve static files."""
     return send_from_directory(
@@ -34,7 +34,7 @@ def static_files(filename):
     )
 
 
-@main_bp.route('/clips/<path:filename>')
+@main.route('/clips/<path:filename>')
 def download_file(filename):
     """Download a generated audio clip file."""
     try:
@@ -52,7 +52,7 @@ def download_file(filename):
         return jsonify({"error": "Error downloading file"}), 500
 
 
-@main_bp.route('/db-check')
+@main.route('/db-check')
 def db_check():
     try:
         db.engine.connect()
@@ -61,7 +61,7 @@ def db_check():
         return f"Connection failed: {str(e)}", 500
 
 
-@main_bp.route('/cache-test')
+@main.route('/cache-test')
 def cache_test():
     try:
         cache.set('test', 'works', timeout=30)
@@ -70,13 +70,13 @@ def cache_test():
         return f"Cache error: {str(e)}", 500
 
 
-@main_bp.route('/cache-check')
+@main.route('/cache-check')
 def cache_check():
     value = cache.get('test')
     return f"Cache value: {value}", 200
 
 
-@main_bp.route('/redis-check')
+@main.route('/redis-check')
 def redis_check():
     try:
         cache.set('test', 'works', timeout=10)
@@ -85,7 +85,7 @@ def redis_check():
         return f"Redis error: {str(e)}", 500
 
 
-@main_bp.route('/health')
+@main.route('/health')
 def health_check():
     """Health check endpoint for Railway."""
     return jsonify({"status": "healthy"}), 200
