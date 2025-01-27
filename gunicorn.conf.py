@@ -42,11 +42,11 @@ logconfig_dict = {
 bind = f"0.0.0.0:{os.getenv('PORT', '8080')}"
 backlog = 2048
 
-# Worker processes - use 2-4 workers per CPU core
-workers = (multiprocessing.cpu_count() * 2) + 1
+# Worker processes
+workers = 2  # Fixed number of workers for Railway
 worker_class = 'sync'
 worker_connections = 1000
-timeout = 120
+timeout = 60  # Reduced timeout
 keepalive = 2
 max_requests = 0  # Disable max requests
 graceful_timeout = 30
