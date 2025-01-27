@@ -1,5 +1,7 @@
+"""Gunicorn configuration file."""
 import os
 import sys
+import multiprocessing
 
 # Configure logging
 logconfig_dict = {
@@ -41,17 +43,17 @@ bind = f"0.0.0.0:{os.getenv('PORT', '8000')}"
 backlog = 2048
 
 # Worker processes
-workers = 2  # Reduced number of workers
+workers = multiprocessing.cpu_count() * 2 + 1
 worker_class = 'sync'
 worker_connections = 1000
-timeout = 120  # Reduced timeout
+timeout = 120
 keepalive = 2
 max_requests = 0  # Disable max requests
 graceful_timeout = 30
 preload_app = True  # Enable preloading
 
 # Process naming
-proc_name = 'audiosnipt'
+proc_name = 'gunicorn_audiosnipt'
 
 # Server mechanics
 daemon = False
@@ -64,7 +66,7 @@ tmp_upload_dir = None
 # Logging
 accesslog = '-'
 errorlog = '-'
-loglevel = 'debug'
+loglevel = 'info'
 access_log_format = (
     '%(h)s %(l)s %(u)s %(t)s "%(r)s" %(s)s %(b)s "%(f)s" "%(a)s"'
 )
@@ -77,7 +79,7 @@ certfile = None
 
 
 def on_starting(server):
-    """Called just before the master process is initialized."""
+    """Log when server starts."""
     server.log.info("Starting Gunicorn server...")
 
 
