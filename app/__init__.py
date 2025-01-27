@@ -68,11 +68,11 @@ def create_app(config_name=None):
         
         # Register blueprints
         with app.app_context():
-            from .routes.main import main_bp
+            from .routes.main import main
             from .routes.search import search_bp
             from .routes.admin_monitor import admin_monitor_bp
             
-            app.register_blueprint(main_bp)
+            app.register_blueprint(main)
             app.register_blueprint(search_bp)
             app.register_blueprint(admin_monitor_bp)
             
@@ -87,30 +87,3 @@ def create_app(config_name=None):
     except Exception as e:
         logger.error(f"Error creating application: {e}")
         raise
-
-def register_blueprints(app):
-    """Register Flask blueprints."""
-    # Register main blueprint first to ensure it handles root route
-    from .routes import main_bp
-    app.register_blueprint(main_bp)
-    
-    # Initialize admin blueprint
-    from app.admin import init_admin
-    init_admin(app)
-    
-    # Register other blueprints
-    from .routes import (
-        monitoring_bp, search_bp, blog_bp,
-        seo_bp, payment_bp, dashboard_bp
-    )
-    from .auth import auth_bp
-    
-    app.register_blueprint(auth_bp)
-    app.register_blueprint(monitoring_bp)
-    app.register_blueprint(search_bp)
-    app.register_blueprint(blog_bp)
-    app.register_blueprint(seo_bp)
-    app.register_blueprint(payment_bp)
-    app.register_blueprint(dashboard_bp)
-    
-    logger.info("All blueprints registered successfully")
