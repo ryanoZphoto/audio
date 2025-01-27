@@ -8,7 +8,6 @@ from flask_login import LoginManager
 from flask_mail import Mail
 from sqlalchemy import event
 from sqlalchemy.engine import Engine
-from sqlalchemy.exc import OperationalError
 
 logger = logging.getLogger(__name__)
 
@@ -16,13 +15,8 @@ logger = logging.getLogger(__name__)
 db = SQLAlchemy()
 migrate = Migrate()
 
-# Configure Redis cache with default URL
-cache_config = {
-    'CACHE_TYPE': 'redis',
-    'CACHE_REDIS_URL': os.getenv('REDIS_URL', 'redis://localhost:6379/0'),
-    'CACHE_DEFAULT_TIMEOUT': 300
-}
-cache = Cache(config=cache_config)
+# Initialize cache without config
+cache = Cache()
 
 # Initialize login manager
 login_manager = LoginManager()
@@ -92,9 +86,16 @@ def init_extensions(app):
     
     # Initialize Flask-Cache with Redis config
     if not app.config.get('TESTING'):
-        cache.init_app(app)
+        cache_config = {
+            'CACHE_TYPE': 'redis',
+            'CACHE_REDIS_URL': os.getenv('REDIS_URL', 'redis://localhost:6379/0'),
+            'CACHE_DEFAULT_TIMEOUT': 300
+        }
+        logger.info(f"Initializing Redis cache with URL: {cache_config['CACHE_REDIS_URL']}")
+        cache.init_app(app, config=cache_config)
     else:
         # Use simple cache for testing
+        logger.info("Using simple cache for testing")
         cache.init_app(app, config={'CACHE_TYPE': 'simple'})
     
     # Initialize Flask-Login
