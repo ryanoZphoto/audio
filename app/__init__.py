@@ -32,6 +32,7 @@ def create_app(config_name=None):
         logger.info("=== Initializing Flask Application ===")
         logger.info(f"Python version: {sys.version}")
         logger.info(f"Current directory: {os.getcwd()}")
+        logger.info("Loading dependencies...")
         
         # Create Flask app
         app = Flask(__name__, 
@@ -49,7 +50,7 @@ def create_app(config_name=None):
                 'max_overflow': 2
             }
             app.config.from_object(Config())
-
+        
         # Configure CORS
         CORS(app, resources={
             r"/*": {
@@ -61,12 +62,12 @@ def create_app(config_name=None):
                 "supports_credentials": True
             }
         })
-
-        # Initialize extensions
-        init_extensions(app)
         
-        # Register blueprints
         with app.app_context():
+            # Initialize extensions
+            init_extensions(app)
+            
+            # Register blueprints
             from .routes.main import main
             from .routes.search import search_bp
             from .routes.admin_monitor import admin_monitor_bp
@@ -76,13 +77,15 @@ def create_app(config_name=None):
             app.register_blueprint(admin_monitor_bp)
             
             logger.info("All blueprints registered successfully")
-
+            
             # Initialize scheduler in production
             if not app.config['TESTING']:
                 init_scheduler()
                 logger.info("Background scheduler initialized")
-
+        
+        logger.info("Flask application initialized successfully")
         return app
+        
     except Exception as e:
         logger.error(f"Error creating application: {e}")
         raise
