@@ -45,6 +45,7 @@ def get_qa_pipeline():
 @search_bp.route('/search', methods=['POST'])
 def search():
     """Handle search requests."""
+    logger.info("Received search request")
     try:
         data = request.get_json()
         if not data:
@@ -54,60 +55,73 @@ def search():
         # Log request data for debugging
         logger.debug(f"Search request data: {data}")
         
-        # Validate required fields
-        required_fields = ['query', 'token']
-        missing_fields = [field for field in required_fields if field not in data]
-        if missing_fields:
-            logger.error(f"Missing required fields: {missing_fields}")
-            return jsonify({'error': f'Missing required fields: {missing_fields}'}), 400
-
+        # Get client IP for free tier tracking
+        client_ip = request.headers.get('X-Forwarded-For', request.remote_addr)
+        
         # Initialize search manager
         search_mgr = SearchManager()
         
-        # Validate token and check search limits
-        token = data.get('token')
-        if not search_mgr.validate_token(token):
-            logger.error(f"Invalid token provided: {token}")
-            return jsonify({'error': 'Invalid token'}), 401
+        # Check token if provided
+        token = data.get('token', '').strip()
+        if token:
+            logger.info("Token provided - checking subscription")
+            status = search_mgr.check_subscription(token)
+            if not status['valid']:
+                logger.error(f"Invalid token: {status.get('error', 'Unknown error')}")
+                return jsonify({'error': status.get('error', 'Invalid token')}), 401
+            if status['remaining'] <= 0:
+                return jsonify({'error': 'Search limit reached'}), 403
+        else:
+            logger.info("No token provided - checking free searches")
+            # Use SearchManager's safe cache operations for free tier
+            if not search_mgr.increment_free_usage(client_ip):
+                return jsonify({'error': 'Free search limit reached'}), 403
 
         # Get search parameters
-        query = data.get('query')
-        channel_id = data.get('channel_id')
+        person_name = data.get('person_name')
+        search_word = data.get('search_word')
+        if not person_name or not search_word:
+            logger.error("Missing required search parameters")
+            return jsonify({'error': 'Missing person_name or search_word'}), 400
 
         try:
             # Perform YouTube search
+            search_query = f"{person_name} {search_word}"
+            logger.info(f"Performing YouTube search for: {search_query}")
+            
             search_results = youtube.search().list(
                 part="id,snippet",
-                q=query,
+                q=search_query,
                 type="video",
-                channelId=channel_id if channel_id else None,
                 maxResults=10
             ).execute()
 
-            # Process and return results
+            # Process results
             videos = []
             for item in search_results.get('items', []):
                 try:
                     video_id = item['id']['videoId']
                     transcript = get_video_transcript(video_id)
-                    matches = []
                     
                     if transcript:
-                        matches = search_word_in_transcript(transcript, query)
-                    
-                    if matches:
-                        videos.append({
-                            'id': video_id,
-                            'title': item['snippet']['title'],
-                            'description': item['snippet']['description'],
-                            'thumbnail': item['snippet']['thumbnails']['default']['url'],
-                            'matches': matches
-                        })
+                        matches = search_word_in_transcript(transcript, search_word)
+                        if matches:
+                            videos.append({
+                                'id': video_id,
+                                'title': item['snippet']['title'],
+                                'description': item['snippet']['description'],
+                                'thumbnail': item['snippet']['thumbnails']['default']['url'],
+                                'matches': matches
+                            })
                 except Exception as video_error:
                     logger.error(f"Error processing video {video_id}: {str(video_error)}")
                     continue
 
-            logger.info(f"Successfully found {len(videos)} videos with matches for query: {query}")
+            # Update usage if using subscription
+            if token and status['valid']:
+                search_mgr.increment_subscription_usage(token)
+
+            logger.info(f"Found {len(videos)} videos with matches")
             return jsonify({
                 'success': True,
                 'results': videos

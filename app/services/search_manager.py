@@ -199,22 +199,24 @@ class SearchManager:
             'expires': token_data['expiry'].isoformat()
         }
         
+    @safe_cache_operation
     def increment_subscription_usage(self, token):
-        """Increment usage count for a subscription."""
-        status = self.check_subscription(token)
-        if not status['valid']:
+        """Increment usage count for subscription."""
+        if self._use_fallback:
+            return True  # Allow searches when cache is down
+            
+        token_data = self._validate_token(token)
+        if not token_data['valid']:
             return False
             
         cache_key = f"token_usage:{token}"
         usage = cache.get(cache_key) or {'used': 0}
-        usage['used'] += 1
         
-        # Store in cache until token expiry
-        expiry = datetime.fromisoformat(status['expires'])
-        timeout = int((expiry - datetime.utcnow()).total_seconds())
-        cache.set(cache_key, usage, timeout=timeout)
-        
-        return True
+        if usage['used'] < token_data['limit']:
+            usage['used'] += 1
+            cache.set(cache_key, usage, timeout=86400)  # 24 hours
+            return True
+        return False
         
     def log_search(self, query, success, token=None, ip_address=None):
         """Log search attempt."""
