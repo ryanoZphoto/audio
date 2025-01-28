@@ -204,7 +204,7 @@ def check_searches():
     """Check remaining searches for a token or free tier."""
     try:
         data = request.get_json()
-        token = data.get('access_token', '').strip() if data else ''
+        token = data.get('token', '').strip() if data else ''
         client_ip = request.headers.get('X-Forwarded-For', request.remote_addr)
         
         search_mgr = SearchManager()
@@ -216,7 +216,7 @@ def check_searches():
                     'success': True,
                     'searches_remaining': status['remaining'],
                     'searches_used': status['used'],
-                    'expires': status['expires'].isoformat() if isinstance(status['expires'], datetime) else status['expires']
+                    'expires': status['expires']
                 })
         
         # Return free tier status
@@ -225,7 +225,7 @@ def check_searches():
             'success': True,
             'searches_remaining': usage['remaining'],
             'searches_used': usage['used'],
-            'expires': usage['expires']  # Already in ISO format from SearchManager
+            'expires': usage['expires']
         })
         
     except Exception as e:
