@@ -8,6 +8,7 @@ from flask_login import LoginManager
 from flask_mail import Mail
 from sqlalchemy import event
 from sqlalchemy.engine import Engine
+from urllib.parse import urlparse
 
 logger = logging.getLogger(__name__)
 
@@ -85,40 +86,40 @@ def init_extensions(app):
     migrate.init_app(app, db)
     
     # Initialize Flask-Cache with Redis config
-    if not app.config.get('TESTING'):
-        redis_url = os.getenv('REDIS_URL', 'redis://localhost:6379/0')
-        cache_config = {
-            'CACHE_TYPE': 'redis',
-            'CACHE_REDIS_URL': redis_url,
-            'CACHE_DEFAULT_TIMEOUT': 300,
-            'CACHE_OPTIONS': {
-                'socket_timeout': 5,
-                'socket_connect_timeout': 5,
-                'retry_on_timeout': True,
-                'max_connections': 20,
-                'ssl_cert_reqs': None  # Don't verify SSL cert
-            }
+    redis_url = os.getenv('REDIS_URL', 'redis://localhost:6379/0')
+    parsed_url = urlparse(redis_url)
+    
+    # Mask sensitive info in logs
+    masked_url = f"{parsed_url.scheme}://{parsed_url.hostname}:{parsed_url.port}{parsed_url.path}"
+    logger.info(f"Configuring Redis cache with URL: {masked_url}")
+    
+    cache_config = {
+        'CACHE_TYPE': 'redis',
+        'CACHE_REDIS_URL': redis_url,
+        'CACHE_DEFAULT_TIMEOUT': 300,
+        'CACHE_OPTIONS': {
+            'socket_timeout': 2,
+            'socket_connect_timeout': 2,
+            'retry_on_timeout': True,
+            'max_connections': 20,
+            'ssl_cert_reqs': None  # Don't verify SSL cert
         }
-        logger.info("=== Redis Cache Configuration ===")
-        logger.info(f"Redis URL format: {redis_url.split('@')[0].split(':')[0]}://*****@{redis_url.split('@')[-1] if '@' in redis_url else redis_url.split('://')[-1]}")
-        try:
-            cache.init_app(app, config=cache_config)
-            # Test the connection
-            cache.set('test_key', 'test_value')
-            test_result = cache.get('test_key')
-            if test_result == 'test_value':
-                logger.info("Redis connection test successful")
-            else:
-                logger.error("Redis connection test failed - could not verify test value")
-        except Exception as e:
-            logger.error(f"Redis initialization error: {str(e)}")
-            # Fall back to simple cache if Redis fails
-            logger.warning("Falling back to simple cache")
-            cache.init_app(app, config={'CACHE_TYPE': 'simple'})
-    else:
-        # Use simple cache for testing
-        logger.info("Using simple cache for testing")
-        cache.init_app(app, config={'CACHE_TYPE': 'simple'})
+    }
+    
+    try:
+        cache.init_app(app, config=cache_config)
+        # Test connection
+        cache.set('_test_key', 'test_value', timeout=1)
+        test_result = cache.get('_test_key')
+        if test_result != 'test_value':
+            raise Exception("Cache test failed - values don't match")
+        logger.info("Redis cache initialized successfully")
+    except Exception as e:
+        logger.error(f"Failed to initialize Redis cache: {str(e)}")
+        logger.warning("Falling back to simple cache")
+        # Fallback to simple cache
+        app.config['CACHE_TYPE'] = 'simple'
+        cache.init_app(app)
     
     # Initialize Flask-Login
     login_manager.init_app(app)
@@ -128,6 +129,15 @@ def init_extensions(app):
     # Initialize Flask-Mail
     mail.init_app(app)
     
+    # Database connection logging
+    @db.event.listens_for(db.engine, 'connect')
+    def connect(dbapi_connection, connection_record):
+        logger.info('Database connection established')
+
+    @db.event.listens_for(db.engine, 'disconnect')
+    def disconnect(dbapi_connection, connection_record):
+        logger.info('Database connection closed')
+
     logger.info("Flask extensions initialized successfully")
 
 # Keep existing code but ensure db is properly exported

@@ -8,6 +8,16 @@ from app.extensions import db, cache
 
 logger = logging.getLogger(__name__)
 
+def safe_cache_operation(operation):
+    """Decorator for safe cache operations with fallback."""
+    def wrapper(*args, **kwargs):
+        try:
+            return operation(*args, **kwargs)
+        except Exception as e:
+            logger.error(f"Cache operation failed: {str(e)}")
+            return None
+    return wrapper
+
 class SearchTier:
     """Search tier configuration."""
     FREE = {
@@ -41,6 +51,21 @@ class SearchManager:
     def __init__(self):
         """Initialize search manager."""
         self.token_secret = current_app.config.get('TOKEN_SECRET', 'your-secret-key-here')
+        self._verify_cache_connection()
+        
+    def _verify_cache_connection(self):
+        """Verify Redis cache connection."""
+        try:
+            cache.set('_test_key', 'test_value', timeout=1)
+            test_result = cache.get('_test_key')
+            if test_result != 'test_value':
+                logger.error("Cache verification failed - values don't match")
+                self._use_fallback = True
+            else:
+                self._use_fallback = False
+        except Exception as e:
+            logger.error(f"Cache verification failed: {str(e)}")
+            self._use_fallback = True
         
     def _generate_token(self, tier_name, expiry_date, search_limit):
         """Generate a signed token for a search tier."""
@@ -76,27 +101,33 @@ class SearchManager:
             logger.error(f"Token validation error: {e}")
         return {'valid': False}
         
+    @safe_cache_operation
     def get_free_searches(self, ip_address):
         """Get remaining free searches for an IP address."""
+        if self._use_fallback:
+            # Fallback to default values if cache is unavailable
+            expiry = datetime.utcnow() + SearchTier.FREE['duration']
+            return {
+                'used': 0,
+                'remaining': SearchTier.FREE['limit'],
+                'expires': expiry.isoformat()
+            }
+            
         cache_key = f"free_searches:{ip_address}"
-        
-        # Check cache first
         usage = cache.get(cache_key)
+        
         if usage is None:
-            # First time user
             expiry = datetime.utcnow() + SearchTier.FREE['duration']
             usage = {
                 'used': 0,
                 'remaining': SearchTier.FREE['limit'],
                 'expires': expiry.isoformat()
             }
-            cache.set(cache_key, usage, timeout=86400)  # 24 hours
-            
-        # Check if expired
+            cache.set(cache_key, usage, timeout=86400)
+        
         try:
             expiry = datetime.fromisoformat(usage['expires'])
             if expiry < datetime.utcnow():
-                # Reset usage
                 expiry = datetime.utcnow() + SearchTier.FREE['duration']
                 usage = {
                     'used': 0,
@@ -105,7 +136,6 @@ class SearchManager:
                 }
                 cache.set(cache_key, usage, timeout=86400)
         except (TypeError, ValueError) as e:
-            # Handle invalid datetime format
             logger.error(f"Invalid expiry format: {e}")
             expiry = datetime.utcnow() + SearchTier.FREE['duration']
             usage = {
@@ -114,13 +144,17 @@ class SearchManager:
                 'expires': expiry.isoformat()
             }
             cache.set(cache_key, usage, timeout=86400)
-            
+        
         return usage
         
+    @safe_cache_operation
     def increment_free_usage(self, ip_address):
         """Increment usage count for free tier."""
+        if self._use_fallback:
+            return True  # Allow searches when cache is down
+            
         usage = self.get_free_searches(ip_address)
-        if usage['remaining'] > 0:
+        if usage and usage['remaining'] > 0:
             usage['used'] += 1
             usage['remaining'] -= 1
             cache.set(f"free_searches:{ip_address}", usage, timeout=86400)
